@@ -1,0 +1,43 @@
+{
+  "name": "ibt-hub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IBT Hub end-to-end test automation with Playwright",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:dispatch:interactive": "node utils/scripts/run-dispatch-interactive.mjs --headed",
+    "test:dispatch:interactive:headless": "node utils/scripts/run-dispatch-interactive.mjs",
+    "report:open": "playwright show-report",
+    "report:open:ibt": "powershell -NoProfile -Command Start-Process artifacts/local/ibt-hub-report.html",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@playwright/test": "^1.58.2",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^22.10.1",
+    "adm-zip": "^0.6.0",
+    "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-playwright": "^2.2.0",
+    "globals": "^16.0.0",
+    "pdfjs-dist": "^6.2.108",
+    "prettier": "^3.5.3",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.55.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "packageManager": "pnpm@10.12.1"
+}
