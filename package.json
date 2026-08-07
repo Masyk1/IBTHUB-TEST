@@ -13,7 +13,7 @@
     "test:dispatch:interactive": "node utils/scripts/run-dispatch-interactive.mjs --headed",
     "test:dispatch:interactive:headless": "node utils/scripts/run-dispatch-interactive.mjs",
     "report:open": "playwright show-report",
-    "report:open:ibt": "powershell -NoProfile -Command Start-Process artifacts/local/ibt-hub-report.html",
+    "report:open:ibt": "node utils/scripts/open-ibt-report.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { EquipmentReportPage } from '@ui/page-objects/equipment-report.page';
 
 test.describe('IBT Hub Equipment Inspection Report', () => {
@@ -16,7 +16,7 @@ test.describe('IBT Hub Equipment Inspection Report', () => {
     });
   });
 
-  test('reports inspected equipment without an Inspector @regression @inspector-validation', async ({
+  test('reports inspected equipment without an Inspector or Foreman @regression @inspector-validation', async ({
     page,
   }, testInfo) => {
     test.setTimeout(300_000);
@@ -25,6 +25,8 @@ test.describe('IBT Hub Equipment Inspection Report', () => {
     const equipmentReport = await equipmentReportPage.getEquipmentReport();
     const inspectedEquipment = equipmentReport.equipment.filter((item) => item.inspected);
     const inspectionsWithoutInspector = inspectedEquipment.filter((item) => item.missingInspector);
+    const inspectionsWithoutForeman = inspectedEquipment.filter((item) => item.missingForeman);
+    const personnelFindings = inspectedEquipment.filter((item) => item.missingInspector || item.missingForeman);
 
     await testInfo.attach('inspector-validation-report', {
       body: Buffer.from(
@@ -33,10 +35,15 @@ test.describe('IBT Hub Equipment Inspection Report', () => {
           reportDate: equipmentReport.reportDate,
           inspectedCount: inspectedEquipment.length,
           missingInspectorCount: inspectionsWithoutInspector.length,
-          inspections: inspectionsWithoutInspector,
+          missingForemanCount: inspectionsWithoutForeman.length,
+          inspections: personnelFindings,
         })
       ),
       contentType: 'application/json',
     });
+
+    expect(inspectionsWithoutInspector, 'Every equipment item marked Inspected Yes must have an Inspector.').toEqual(
+      []
+    );
   });
 });

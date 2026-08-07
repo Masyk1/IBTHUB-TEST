@@ -1,8 +1,14 @@
 import AdmZip from 'adm-zip';
+import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { BasePage } from './base.page';
 import type { ArchivedInspectionRecord, EquipmentRecord, EquipmentSection, JobDispatchDetails } from '@utils/types';
+
+const standardFontDataUrl = `${path.resolve(
+  import.meta.dirname,
+  '../../../node_modules/pdfjs-dist/standard_fonts'
+)}${path.sep}`;
 
 export class JobDetailsPage extends BasePage {
   private readonly heading: Locator;
@@ -108,7 +114,10 @@ export class JobDetailsPage extends BasePage {
     const records: ArchivedInspectionRecord[] = [];
     for (const entry of new AdmZip(archiveBuffer).getEntries()) {
       if (entry.isDirectory || !/\.pdf$/i.test(entry.entryName)) continue;
-      const loadingTask = getDocument({ data: new Uint8Array(entry.getData()) });
+      const loadingTask = getDocument({
+        data: new Uint8Array(entry.getData()),
+        standardFontDataUrl,
+      });
       const document = await loadingTask.promise;
       const textParts: string[] = [];
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {

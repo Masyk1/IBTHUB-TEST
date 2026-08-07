@@ -133,5 +133,6 @@ export interface InspectorValidationArtifact {
   readonly reportDate: string;
   readonly inspectedCount: number;
   readonly missingInspectorCount: number;
+  readonly missingForemanCount: number;
   readonly inspections: EquipmentReportRecord[];
 }

@@ -6,6 +6,7 @@ blob-report/
 playwright/.cache/
 .state/
 artifacts/
+output/
 .env
 .playwright-cli
 debug.log
