@@ -42,29 +42,19 @@ try {
   prompt.close();
 
   console.log(
-    `\nStarting IBT Hub dispatch test for ${dispatchDate} ${waitForImages ? `with image link verification (${imagePageWorkers} parallel pages)` : 'without image link verification'}...\n`
+    `\nStarting the complete IBT Hub test suite for ${dispatchDate} ${waitForImages ? `with image link verification (${imagePageWorkers} parallel pages)` : 'without image link verification'}...\n`
   );
   const playwrightCli = fileURLToPath(new URL('../../node_modules/@playwright/test/cli.js', import.meta.url));
   const browserArguments = process.argv.includes('--headed') ? ['--headed'] : [];
-  const child = spawn(
-    process.execPath,
-    [
-      playwrightCli,
-      'test',
-      'specs/ui/tests/dispatch-details.spec.ts',
-      'specs/ui/tests/equipment-report.spec.ts',
-      ...browserArguments,
-    ],
-    {
-      stdio: 'inherit',
-      env: {
-        ...process.env,
-        DISPATCH_DATE: dispatchDate,
-        WAIT_FOR_IMAGES: String(waitForImages),
-        IMAGE_PAGE_WORKERS: imagePageWorkers,
-      },
-    }
-  );
+  const child = spawn(process.execPath, [playwrightCli, 'test', ...browserArguments], {
+    stdio: 'inherit',
+    env: {
+      ...process.env,
+      DISPATCH_DATE: dispatchDate,
+      WAIT_FOR_IMAGES: String(waitForImages),
+      IMAGE_PAGE_WORKERS: imagePageWorkers,
+    },
+  });
 
   child.on('exit', (code) => process.exit(code ?? 1));
   child.on('error', (error) => {

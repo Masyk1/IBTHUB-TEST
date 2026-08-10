@@ -21,23 +21,23 @@ Credentials must remain in `.env`. Never commit this file.
 
 ## Useful commands
 
-| Command                                       | Purpose                                                 |
-| --------------------------------------------- | ------------------------------------------------------- |
-| `pnpm test`                                   | Run all tests headless                                  |
-| `pnpm test:smoke`                             | Run all `@smoke` tests                                  |
-| `pnpm test:headed`                            | Run all tests with a visible browser                    |
-| `pnpm test:ui`                                | Open Playwright UI mode                                 |
-| `pnpm test:debug`                             | Run in Playwright debug mode                            |
-| `pnpm run test:dispatch:interactive`          | Run selected-date Dispatch and Equipment tests headed   |
-| `pnpm run test:dispatch:interactive:headless` | Run selected-date Dispatch and Equipment tests headless |
-| `pnpm report:open`                            | Open the standard Playwright HTML report                |
-| `pnpm report:open:ibt`                        | Open the custom IBT Hub HTML report                     |
-| `pnpm typecheck`                              | Run TypeScript checks                                   |
-| `pnpm lint`                                   | Run ESLint                                              |
-| `pnpm lint:fix`                               | Apply safe ESLint fixes                                 |
-| `pnpm format`                                 | Format the project with Prettier                        |
-| `pnpm format:check`                           | Check formatting without changing files                 |
-| `pnpm check`                                  | Run TypeScript, ESLint, and Prettier checks             |
+| Command                                       | Purpose                                              |
+| --------------------------------------------- | ---------------------------------------------------- |
+| `pnpm test`                                   | Run all tests headless                               |
+| `pnpm test:smoke`                             | Run all `@smoke` tests                               |
+| `pnpm test:headed`                            | Run all tests with a visible browser                 |
+| `pnpm test:ui`                                | Open Playwright UI mode                              |
+| `pnpm test:debug`                             | Run in Playwright debug mode                         |
+| `pnpm run test:dispatch:interactive`          | Run the complete suite for a selected date, headed   |
+| `pnpm run test:dispatch:interactive:headless` | Run the complete suite for a selected date, headless |
+| `pnpm report:open`                            | Open the standard Playwright HTML report             |
+| `pnpm report:open:ibt`                        | Open the custom IBT Hub HTML report                  |
+| `pnpm typecheck`                              | Run TypeScript checks                                |
+| `pnpm lint`                                   | Run ESLint                                           |
+| `pnpm lint:fix`                               | Apply safe ESLint fixes                              |
+| `pnpm format`                                 | Format the project with Prettier                     |
+| `pnpm format:check`                           | Check formatting without changing files              |
+| `pnpm check`                                  | Run TypeScript, ESLint, and Prettier checks          |
 
 In PowerShell, use `pnpm.cmd` instead of `pnpm` if script execution policy blocks `pnpm.ps1`.
 
@@ -66,7 +66,7 @@ Check image links? (Y/N): Y
 - `Y` or `Yes`: waits for Images, displays image results in the report, and processes 15 Job Number pages in parallel.
 - `N` or `No`: does not wait for Images, hides all image fields from the report, and still processes 15 Job Number pages in parallel.
 - The current year is selected automatically.
-- Dispatch, Equipment Report, and Inspector Validation all use the selected month and day.
+- Job Numbers, Dispatch, Equipment Report, and Inspector Validation all use the selected month and day.
 - All results are written to the same custom IBT HTML report.
 - Missing Foreman and Inspector values are reported as data findings and do not stop the test run.
 

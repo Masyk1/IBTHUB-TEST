@@ -5,6 +5,7 @@ test.describe('IBT Hub Job List', () => {
   test('extracts all Job Numbers @smoke @job-numbers', async ({ page }, testInfo) => {
     const jobNumbersPage = new JobNumbersPage(page);
     await jobNumbersPage.open('/jobnumbers');
+    await jobNumbersPage.selectConfiguredDispatchDate(process.env.DISPATCH_DATE);
     const jobNumbers = await jobNumbersPage.getAllJobNumbers();
     await testInfo.attach('job-numbers-report', {
       body: Buffer.from(
