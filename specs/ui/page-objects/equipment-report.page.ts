@@ -9,6 +9,7 @@ export class EquipmentReportPage extends BasePage {
   private readonly showingCount: Locator;
   private readonly dateInput: Locator;
   private readonly retrievingInfo: Locator;
+  private readonly downloadButton: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -18,6 +19,7 @@ export class EquipmentReportPage extends BasePage {
     this.showingCount = page.getByText(/Showing \d+ of \d+ equipment items/i);
     this.dateInput = page.locator('input.flatpickr-input[readonly]').first();
     this.retrievingInfo = page.getByText('Retrieving Info', { exact: true });
+    this.downloadButton = page.getByRole('button', { name: 'Download', exact: true });
   }
 
   async toBeLoaded(): Promise<void> {
@@ -28,16 +30,24 @@ export class EquipmentReportPage extends BasePage {
   async openReport(): Promise<void> {
     const transientStatuses = new Set([502, 503, 504]);
     let lastStatus: number | undefined;
+    let lastError: Error | undefined;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       const response = await this.page.goto('/equipmentreport', { waitUntil: 'domcontentloaded' });
       lastStatus = response?.status();
       if (!lastStatus || !transientStatuses.has(lastStatus)) {
-        await this.toBeLoaded();
-        await this.selectConfiguredReportDate(process.env.DISPATCH_DATE);
-        return;
+        try {
+          await expect(this.heading).toBeVisible({ timeout: 30_000 });
+          await this.waitForReportData(75_000);
+          await this.selectConfiguredReportDate(process.env.DISPATCH_DATE, 75_000);
+          return;
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+        }
       }
     }
-    throw new Error(`Equipment Report remained unavailable after 3 attempts (HTTP ${lastStatus ?? 'unknown'}).`);
+    throw new Error(
+      `Equipment Report remained unavailable after 3 attempts (last HTTP status: ${lastStatus ?? 'unknown'}). ${lastError?.message ?? ''}`.trim()
+    );
   }
 
   async getEquipmentReport(): Promise<EquipmentReportArtifact> {
@@ -66,7 +76,24 @@ export class EquipmentReportPage extends BasePage {
     };
   }
 
-  private async selectConfiguredReportDate(date: string | undefined): Promise<void> {
+  async downloadExcel(): Promise<{ buffer: Buffer; fileName: string }> {
+    await expect(this.downloadButton).toBeVisible();
+    const [download] = await Promise.all([this.page.waitForEvent('download'), this.downloadButton.click()]);
+    try {
+      const stream = await download.createReadStream();
+      if (!stream) throw new Error('Equipment Report Excel download stream was not available.');
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream as AsyncIterable<unknown>) {
+        if (typeof chunk === 'string' || chunk instanceof Uint8Array) chunks.push(Buffer.from(chunk));
+        else throw new Error('Equipment Report Excel returned an unsupported stream chunk.');
+      }
+      return { buffer: Buffer.concat(chunks), fileName: download.suggestedFilename() };
+    } finally {
+      await download.delete();
+    }
+  }
+
+  private async selectConfiguredReportDate(date: string | undefined, timeout = 180_000): Promise<void> {
     if (!date || (await this.dateInput.inputValue()) === date) return;
     const parsedDate = new Date(`${date}T12:00:00`);
     if (Number.isNaN(parsedDate.getTime())) throw new Error(`Invalid Equipment Report date: ${date}`);
@@ -85,7 +112,7 @@ export class EquipmentReportPage extends BasePage {
     }).format(parsedDate);
     await calendar.locator(`.flatpickr-day[aria-label="${ariaLabel}"]:not(.prevMonthDay):not(.nextMonthDay)`).click();
     await expect(this.dateInput).toHaveValue(date);
-    await this.waitForReportData();
+    await this.waitForReportData(timeout);
     await expect
       .poll(
         async () => {
@@ -98,7 +125,7 @@ export class EquipmentReportPage extends BasePage {
       .toBe(true);
   }
 
-  private async waitForReportData(): Promise<void> {
+  private async waitForReportData(timeout = 180_000): Promise<void> {
     await expect
       .poll(
         async () => {
@@ -109,7 +136,7 @@ export class EquipmentReportPage extends BasePage {
         {
           message:
             'Equipment Report did not finish loading: the page remained on "Retrieving Info" and no report table was displayed.',
-          timeout: 180_000,
+          timeout,
         }
       )
       .toBe(true);

@@ -3,12 +3,17 @@ import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { BasePage } from './base.page';
-import type { ArchivedInspectionRecord, EquipmentRecord, EquipmentSection, JobDispatchDetails } from '@utils/types';
+import type {
+  ArchivedInspectionRecord,
+  EquipmentRecord,
+  EquipmentSection,
+  JobDispatchDetails,
+  JobEquipmentSnapshot,
+} from '@utils/types';
 
-const standardFontDataUrl = `${path.resolve(
-  import.meta.dirname,
-  '../../../node_modules/pdfjs-dist/standard_fonts'
-)}${path.sep}`;
+const standardFontDataUrl = `${path
+  .resolve(import.meta.dirname, '../../../node_modules/pdfjs-dist/standard_fonts')
+  .replaceAll(path.sep, '/')}/`;
 
 export class JobDetailsPage extends BasePage {
   private readonly heading: Locator;
@@ -64,7 +69,7 @@ export class JobDetailsPage extends BasePage {
     );
     const inspectionPdfLinks = submittedEquipment.filter((equipment) => Boolean(equipment.inspectionUrl)).length;
     const archivedInspections =
-      todaysSubmittedInspection > inspectionPdfLinks ? await this.readInspectionArchive(todaysSubmittedInspection) : [];
+      todaysSubmittedInspection > 0 ? await this.readInspectionArchive(todaysSubmittedInspection) : [];
 
     return {
       jobNumber,
@@ -85,6 +90,25 @@ export class JobDetailsPage extends BasePage {
       inspectionPdfLinks,
       archivedInspections,
       sections,
+    };
+  }
+
+  async openAndGetEquipmentSnapshot(path: string, expectedJobNumber: string): Promise<JobEquipmentSnapshot | null> {
+    const jobListHeading = this.page.getByRole('heading', { name: 'Job List', exact: true });
+    await this.page.goto(path, { waitUntil: 'domcontentloaded' });
+    await expect(this.heading.or(jobListHeading)).toBeVisible({ timeout: 30_000 });
+    if (!(await this.heading.isVisible())) return null;
+    if (await this.page.getByText('There is no info in this Job Number', { exact: true }).isVisible()) return null;
+
+    const bodyText = await this.page.locator('body').innerText();
+    const jobNumber = this.readText(bodyText, /Job Number:\s*([^\r\n]+)/i, 'Job Number');
+    expect(jobNumber).toBe(expectedJobNumber);
+    const imagesTimedOut = await this.waitForImagesToResolve();
+    const sections = await this.readEquipmentSections(imagesTimedOut);
+    return {
+      jobNumber,
+      dataDate: this.readText(bodyText, /Data Date:\s*([^\r\n]+)/i, 'Data Date'),
+      equipment: sections.find((section) => section.name === 'All Dispatched Equipment')?.equipment ?? [],
     };
   }
 

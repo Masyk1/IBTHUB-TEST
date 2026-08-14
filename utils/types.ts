@@ -32,6 +32,12 @@ export interface JobDispatchDetails {
   readonly sections: EquipmentSection[];
 }
 
+export interface JobEquipmentSnapshot {
+  readonly jobNumber: string;
+  readonly dataDate: string;
+  readonly equipment: EquipmentRecord[];
+}
+
 export interface ArchivedInspectionRecord {
   readonly instantNumber: string;
   readonly equipmentNumber: string;
@@ -126,6 +132,75 @@ export interface EquipmentReportArtifact {
   readonly missingForemanCount: number;
   readonly missingInspectorCount: number;
   readonly equipment: EquipmentReportRecord[];
+  readonly excelValidation?: EquipmentExcelValidationArtifact;
+  readonly jobValidation?: JobEquipmentValidationArtifact;
+}
+
+export interface ExcelEquipmentReportArtifact {
+  readonly generatedAt: string;
+  readonly reportDate: string;
+  readonly rowCount: number;
+  readonly excelValidation: EquipmentExcelValidationArtifact;
+  readonly jobValidation: JobEquipmentValidationArtifact;
+}
+
+export interface EquipmentExcelMismatch {
+  readonly row: number;
+  readonly column: keyof EquipmentReportRecord;
+  readonly uiValue: string;
+  readonly excelValue: string;
+}
+
+export interface EquipmentExcelValidationArtifact {
+  readonly generatedAt: string;
+  readonly uiRowCount: number;
+  readonly excelRowCount: number;
+  readonly mismatchCount: number;
+  readonly mismatches: EquipmentExcelMismatch[];
+}
+
+export interface JobEquipmentMismatch {
+  readonly jobNumber: string;
+  readonly equipmentNumber: string;
+  readonly description: string;
+}
+
+export interface JobEquipmentFieldMismatch {
+  readonly jobNumber: string;
+  readonly equipmentNumber: string;
+  readonly field: 'Description' | 'Inspected' | 'Pictures' | 'Date';
+  readonly excelValue: string;
+  readonly equipmentReportValue: string;
+  readonly jobDetailsValue: string;
+  readonly excelInspected: string;
+  readonly excelPictures: string;
+  readonly equipmentReportInspected: string;
+  readonly equipmentReportPictures: string;
+  readonly allDispatchedInspected: string;
+  readonly allDispatchedPictures: string;
+}
+
+export interface EquipmentImageInspectionConflict {
+  readonly jobNumber: string;
+  readonly equipmentNumber: string;
+  readonly excelInspected: string;
+  readonly excelPictures: string;
+  readonly equipmentReportInspected: string;
+  readonly equipmentReportPictures: string;
+  readonly allDispatchedInspected: string;
+  readonly allDispatchedPictures: string;
+}
+
+export interface JobEquipmentValidationArtifact {
+  readonly generatedAt: string;
+  readonly reportRowCount: number;
+  readonly extractedJobCount: number;
+  readonly missingCount: number;
+  readonly missingEquipment: JobEquipmentMismatch[];
+  readonly mismatchCount: number;
+  readonly mismatches: JobEquipmentFieldMismatch[];
+  readonly imageWithoutInspectionCount: number;
+  readonly imageWithoutInspection: EquipmentImageInspectionConflict[];
 }
 
 export interface InspectorValidationArtifact {
