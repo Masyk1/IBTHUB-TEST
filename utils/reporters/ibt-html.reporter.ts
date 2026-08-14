@@ -5,15 +5,22 @@ import type {
   DispatchDetailsArtifact,
   EquipmentRecord,
   EquipmentReportArtifact,
+  ExcelEquipmentReportArtifact,
   ImageInspectionValidationArtifact,
   InspectionCountValidationArtifact,
   InspectorValidationArtifact,
   JobDispatchDetails,
+  JobEquipmentValidationArtifact,
+  SkippedJobDispatch,
 } from '@utils/types';
 
 interface JobNumbersArtifact {
   readonly count: number;
   readonly jobNumbers: string[];
+  readonly jobs?: JobDispatchDetails[];
+  readonly skippedJobs?: SkippedJobDispatch[];
+  readonly imagesIncluded?: boolean;
+  readonly equipmentValidation?: JobEquipmentValidationArtifact;
   readonly message?: string;
 }
 
@@ -27,6 +34,7 @@ interface ReportEntry {
   readonly inspectionValidation?: InspectionCountValidationArtifact;
   readonly imageInspectionValidation?: ImageInspectionValidationArtifact;
   readonly equipmentReport?: EquipmentReportArtifact;
+  readonly excelEquipmentValidation?: ExcelEquipmentReportArtifact;
   readonly inspectorValidation?: InspectorValidationArtifact;
 }
 
@@ -46,6 +54,9 @@ class IbtHtmlReporter implements Reporter {
       (item) => item.name === 'image-inspection-validation-report'
     );
     const equipmentReportAttachment = result.attachments.find((item) => item.name === 'equipment-report');
+    const excelEquipmentValidationAttachment = result.attachments.find(
+      (item) => item.name === 'excel-equipment-validation-report'
+    );
     const inspectorValidationAttachment = result.attachments.find(
       (item) => item.name === 'inspector-validation-report'
     );
@@ -54,6 +65,7 @@ class IbtHtmlReporter implements Reporter {
     let inspectionValidation: InspectionCountValidationArtifact | undefined;
     let imageInspectionValidation: ImageInspectionValidationArtifact | undefined;
     let equipmentReport: EquipmentReportArtifact | undefined;
+    let excelEquipmentValidation: ExcelEquipmentReportArtifact | undefined;
     let inspectorValidation: InspectorValidationArtifact | undefined;
 
     try {
@@ -107,6 +119,17 @@ class IbtHtmlReporter implements Reporter {
 
     try {
       const json =
+        excelEquipmentValidationAttachment?.body?.toString('utf8') ??
+        (excelEquipmentValidationAttachment?.path
+          ? await fs.readFile(excelEquipmentValidationAttachment.path, 'utf8')
+          : undefined);
+      excelEquipmentValidation = json ? (JSON.parse(json) as ExcelEquipmentReportArtifact) : undefined;
+    } catch {
+      excelEquipmentValidation = undefined;
+    }
+
+    try {
+      const json =
         inspectorValidationAttachment?.body?.toString('utf8') ??
         (inspectorValidationAttachment?.path
           ? await fs.readFile(inspectorValidationAttachment.path, 'utf8')
@@ -126,6 +149,7 @@ class IbtHtmlReporter implements Reporter {
       inspectionValidation,
       imageInspectionValidation,
       equipmentReport,
+      excelEquipmentValidation,
       inspectorValidation,
     });
   }
@@ -138,9 +162,7 @@ class IbtHtmlReporter implements Reporter {
 
   private render(): string {
     const functionalEntries = this.entries.filter((entry) => !this.isSetupEntry(entry));
-    const warnings = functionalEntries.filter(
-      (entry) => entry.status === 'passed' && (entry.inspectorValidation?.missingForemanCount ?? 0) > 0
-    ).length;
+    const warnings = functionalEntries.filter((entry) => entry.status === 'passed' && this.hasWarning(entry)).length;
     const passed = functionalEntries.filter((entry) => entry.status === 'passed').length - warnings;
     const failed = functionalEntries.filter((entry) => entry.status !== 'passed').length;
     const setupEntry = this.entries.find((entry) => this.isSetupEntry(entry));
@@ -182,36 +204,45 @@ header h1{font-size:38px;letter-spacing:-1.2px}.header-copy{color:#cbd9e6;font-s
 .metric{appearance:none;text-align:left;color:inherit;font:inherit;cursor:pointer;position:relative;overflow:hidden;padding:22px 24px;border:1px solid #fff;border-radius:16px;background:#fff;box-shadow:0 9px 24px #203a5212;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}.metric:hover,.metric.active{transform:translateY(-3px);border-color:#a9bac9;box-shadow:0 14px 30px #203a5220}.metric:after{position:absolute;right:18px;top:14px;width:42px;height:42px;display:grid;place-items:center;border-radius:13px;font-size:20px;font-weight:900}.metric.tests:after{content:"#";background:#e7eff8;color:#324c66}.metric.success:after{content:"✓";background:#dcf7e9;color:var(--green)}.metric.warning-metric:after{content:"!";background:#fff0b3;color:#8a6200}.metric.failure:after{content:"×";background:#ffe2e5;color:#c5233c}.metric strong{display:block;font-size:38px;line-height:1}.metric span{display:block;margin-top:7px;color:#6a7784;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}.metric:before{content:"";position:absolute;inset:0 auto 0 0;width:5px}.metric.tests:before{background:#607890}.metric.success:before{background:var(--green)}.metric.warning-metric:before{background:#e6a700}.metric.failure:before{background:#c5233c}.metric.warning-metric strong{color:#9a6800}
 .content{padding:34px 48px 52px}.section-heading{margin-bottom:20px}.section-heading h2{font-size:24px;letter-spacing:-.4px}.report-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.report-action{appearance:none;padding:9px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#34475a;font:700 12px Segoe UI,Arial,sans-serif;cursor:pointer;box-shadow:0 3px 9px #21384d0b;transition:.18s ease}.report-action:hover,.report-action.active{border-color:#7890a6;background:#edf4fa;transform:translateY(-1px)}
 .dashboard-toolbar{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:12px;margin:0 0 22px;padding:14px;border:1px solid #dce6ee;border-radius:15px;background:#fffffff2;box-shadow:0 10px 28px #18344d18;backdrop-filter:blur(16px)}.global-search{width:100%;padding:12px 15px 12px 42px;border:1px solid #cbd7e1;border-radius:11px;background:#f8fbfd;color:#203449;font:inherit;outline:none}.search-wrap{position:relative}.search-wrap:before{content:"⌕";position:absolute;left:15px;top:8px;color:#698096;font-size:22px}.global-search:focus{border-color:#2684ff;box-shadow:0 0 0 4px #2684ff18;background:#fff}.toolbar-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.visible-count{min-width:92px;color:#627487;font-size:12px;font-weight:750;text-align:right}.no-results{display:none;margin:20px 0;padding:24px;border:1px dashed #b9c7d3;border-radius:13px;background:#f8fafc;color:#68798a;text-align:center;font-weight:700}
-.test-card{border:1px solid #dfe7ee;border-left:0;border-radius:16px;margin-bottom:16px;box-shadow:0 7px 24px #1b344b0b;transition:box-shadow .2s ease,transform .2s ease}.test-card:hover{box-shadow:0 12px 32px #1b344b16}.test-card:before{content:"";position:absolute}.test-card>summary{min-height:82px;padding:18px 22px;border-left:6px solid var(--red);background:linear-gradient(100deg,#fff,#f7fafc)}.test-card.setup-card>summary{border-left-color:#8090a0}.test-card[open]>summary{border-bottom:1px solid #e5ebf0}.test-card>summary:after{content:"⌄";font-size:22px;transition:transform .2s ease}.test-card[open]>summary:after{content:"⌄";transform:rotate(180deg)}.test-number{border-radius:10px;background:linear-gradient(135deg,var(--red),#bd1230);box-shadow:0 6px 14px #d7193530}.test-name{font-size:17px}.badge{letter-spacing:.35px}.body{padding:24px 26px 28px}.meta{display:inline-flex;padding:7px 11px;border-radius:8px;background:#f2f6f9;color:#607184;font-size:13px}
-.job-search{margin-top:8px;padding:14px 16px;border-color:#cad5df;border-radius:12px;background:#f9fbfd;transition:.18s ease}.job-search:focus{background:#fff;box-shadow:0 0 0 4px #2684ff18}.dispatch-job{border-color:#dbe4eb;border-radius:15px;box-shadow:0 7px 20px #1a354e0d}.dispatch-job>summary{padding:14px 18px;border-radius:14px;background:linear-gradient(105deg,#142a3f,#284b69);box-shadow:0 6px 16px #132a4030}.dispatch-job>summary .title{background:linear-gradient(135deg,var(--red),#b50f2a);box-shadow:0 4px 12px #d7193545}.dispatch-body{padding:20px}.dispatch-summary,.equipment-summary{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:0;border:0;background:transparent}.dispatch-summary div,.equipment-summary div{min-height:82px;padding:15px 16px;border:1px solid #e3eaf0;border-top:1px solid #e3eaf0!important;border-radius:12px;background:linear-gradient(145deg,#fff,#f5f8fb);box-shadow:0 5px 14px #19334c0b;font-size:18px}.dispatch-summary div:before,.equipment-summary div:before{content:"";display:block;width:28px;height:3px;margin-bottom:11px;border-radius:2px;background:linear-gradient(90deg,var(--red),var(--red-2))}.equipment-summary div:before{background:linear-gradient(90deg,var(--blue),#71b0ff)}.dispatch-summary strong,.equipment-summary strong{color:#67798a;font-size:10px;letter-spacing:.55px}
+.test-card{border:1px solid #dfe7ee;border-left:0;border-radius:16px;margin-bottom:16px;box-shadow:0 7px 24px #1b344b0b;transition:box-shadow .2s ease,transform .2s ease}.test-card:hover{box-shadow:0 12px 32px #1b344b16}.test-card:before{content:"";position:absolute}.test-card>summary{min-height:82px;padding:18px 22px;border-left:6px solid var(--red);background:linear-gradient(100deg,#fff,#f7fafc)}.test-card.setup-card>summary{border-left-color:#8090a0}.test-card.passed-warning>summary{border-left-color:#e6a700;background:linear-gradient(100deg,#fffdf7,#fff9df)}.test-card.passed-warning .test-number{background:linear-gradient(135deg,#e6a700,#bd8500);box-shadow:0 6px 14px #9a680030}.test-card[open]>summary{border-bottom:1px solid #e5ebf0}.test-card>summary:after{content:"⌄";font-size:22px;transition:transform .2s ease}.test-card[open]>summary:after{content:"⌄";transform:rotate(180deg)}.test-number{border-radius:10px;background:linear-gradient(135deg,var(--red),#bd1230);box-shadow:0 6px 14px #d7193530}.test-name{font-size:17px}.badge{letter-spacing:.35px}.body{padding:24px 26px 28px}.meta{display:inline-flex;padding:7px 11px;border-radius:8px;background:#f2f6f9;color:#607184;font-size:13px}
+.job-search{margin-top:8px;padding:14px 16px;border-color:#cad5df;border-radius:12px;background:#f9fbfd;transition:.18s ease}.job-search:focus{background:#fff;box-shadow:0 0 0 4px #2684ff18}.dispatch-job{border-color:#dbe4eb;border-radius:15px;box-shadow:0 7px 20px #1a354e0d}.dispatch-job>summary{padding:14px 18px;border-radius:14px;background:linear-gradient(105deg,#142a3f,#284b69);box-shadow:0 6px 16px #132a4030}.dispatch-job>summary .title{background:linear-gradient(135deg,var(--red),#b50f2a);box-shadow:0 4px 12px #d7193545}.dispatch-body{padding:20px}.dispatch-summary,.equipment-summary{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:0;border:0;background:transparent}.dispatch-summary div,.equipment-summary div,.equipment-summary button{min-height:82px;padding:15px 16px;border:1px solid #e3eaf0;border-top:1px solid #e3eaf0!important;border-radius:12px;background:linear-gradient(145deg,#fff,#f5f8fb);box-shadow:0 5px 14px #19334c0b;color:inherit;font:inherit;font-size:18px;font-weight:750;text-align:left}.dispatch-summary div:before,.equipment-summary div:before,.equipment-summary button:before{content:"";display:block;width:28px;height:3px;margin-bottom:11px;border-radius:2px;background:linear-gradient(90deg,var(--red),var(--red-2))}.equipment-summary div:before,.equipment-summary button:before{background:linear-gradient(90deg,var(--blue),#71b0ff)}.dispatch-summary strong,.equipment-summary strong{display:block;color:#67798a;font-size:10px;letter-spacing:.55px}.equipment-summary .missing-foreman-filter{cursor:pointer;border-color:#ead58a!important;background:linear-gradient(145deg,#fffdf2,#fff7d8);box-shadow:0 5px 14px #9a680015;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}.equipment-summary .missing-foreman-filter:before{background:linear-gradient(90deg,#e6a700,#ffd95a)}.equipment-summary .missing-foreman-filter:hover,.equipment-summary .missing-foreman-filter.active{transform:translateY(-2px);border-color:#d5a900!important;box-shadow:0 9px 22px #9a680026}.equipment-summary .missing-foreman-filter.active{background:#ffefad;outline:3px solid #e6a70028}.equipment-summary .missing-foreman-filter strong{color:#8a6200}
 .table-wrap{border:1px solid #dfe7ed;border-radius:13px;box-shadow:0 6px 18px #18334c0a}table{border-collapse:separate;border-spacing:0}th,td{padding:12px 13px;border:0;border-bottom:1px solid #e4eaf0}th{position:sticky;top:0;z-index:2;background:#1b334a;color:#f7fbff;font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}th:first-child{border-radius:11px 0 0}th:last-child{border-radius:0 11px 0 0}tbody tr{transition:background .14s ease}tbody tr:hover td{background:#edf5fc!important}tbody tr:last-child td{border-bottom:0}.equipment-in-use td{background:#edf9f3}.equipment-problem td,.validation-row-failed td{background:#fff0f2!important}.equipment-warning td{background:#fff8dc!important;border-color:#ead58a}.view-link{color:#0876e1;text-decoration:none}.view-link:hover{text-decoration:underline}.key-on{display:table-cell;color:#087a46}.equipment-filter{position:sticky;top:8px;z-index:4;justify-content:space-between;padding:12px 14px;border:1px solid #dce5ec;border-radius:12px;background:#fffffff2;box-shadow:0 8px 22px #17334c12;backdrop-filter:blur(12px)}.equipment-filter select{border-radius:9px}.validation-passed{border:1px solid #bfe9d1;border-left:5px solid var(--green);border-radius:11px;background:linear-gradient(100deg,#ebfaf2,#f7fffa)}
 .job-errors{border-radius:13px!important}.job-error{border-radius:12px}.job-error img{border-radius:10px}.section-title{margin-top:24px;font-size:16px}.empty{padding:18px;border:1px dashed #cbd6df;border-radius:10px;background:#f8fafc}
 .validation-job>summary{position:relative;top:auto}.validation-job-metrics{display:flex;align-items:center;justify-content:flex-end;gap:18px;flex:1}.validation-job-metrics>span:not(.badge){color:#d7e3ed;font-size:11px;font-weight:600;text-transform:uppercase}.validation-job-metrics strong{display:block;margin-top:2px;color:#fff;font-size:15px}.duplicate-card{margin:4px 0 18px;padding:16px;border:1px solid #f0b9c1;border-left:5px solid var(--red);border-radius:12px;background:#fff8f9}.duplicate-card h4{margin:0 0 12px;color:#a62238;font-size:16px}.duplicate-card h4 span{margin-left:8px;color:#5e6f80;font-size:13px;font-weight:600}.duplicate-card .table-wrap{margin-bottom:0;background:#fff}
+.comparison-list{display:grid;gap:12px;margin:12px 0 22px}.comparison-card{padding:15px;border:1px solid #efb4bb;border-left:5px solid var(--red);border-radius:12px;background:#fff8f9}.comparison-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}.comparison-title strong{font-size:15px;color:#8f1f2c}.comparison-title span{padding:4px 8px;border-radius:6px;background:#f9dadd;color:#8f1f2c;font-size:12px;font-weight:750}.comparison-problem{margin:0 0 12px;padding:9px 11px;border-radius:8px;background:#fff0f1;color:#8f1f2c;font-weight:700}.comparison-sources{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px}.comparison-source{position:relative;padding:11px;border:1px solid #dce5ec;border-radius:9px;background:#fff}.comparison-source.has-outlier{border:3px solid #e71939;background:#fff5f6;box-shadow:0 0 0 4px #e7193918,0 8px 20px #b3132b20}.comparison-source.has-outlier:before{content:"DIFFERENCE HERE";position:absolute;right:8px;top:-11px;padding:4px 8px;border-radius:999px;background:#e71939;color:#fff;font-size:9px;font-weight:900;letter-spacing:.55px;box-shadow:0 4px 10px #b3132b35}.comparison-source h5{margin:0 0 8px;color:#516476;font-size:11px;text-transform:uppercase;letter-spacing:.4px}.comparison-source.has-outlier h5{color:#a7192d;font-weight:900}.comparison-values{display:grid;grid-template-columns:1fr 1fr;gap:7px}.comparison-value{padding:7px 8px;border-radius:7px;background:#edf8f2;color:#176b38}.comparison-value strong{display:block;margin-bottom:3px;color:#687887;font-size:9px;text-transform:uppercase}.comparison-value.different{background:#fff7df;color:#7a5900;box-shadow:inset 0 0 0 1px #ecd478}.comparison-value.outlier{background:#e71939;color:#fff;box-shadow:0 5px 14px #b3132b35;transform:scale(1.03);font-size:16px;font-weight:900}.comparison-value.outlier strong{color:#fff}.comparison-other{margin-top:9px;color:#6a7784;font-size:12px}@media(max-width:800px){.comparison-sources{grid-template-columns:1fr}}
 .passed-jobs-group{margin-top:22px;border:1px solid #cfe3d8;border-radius:13px;background:#f4fbf7;overflow:hidden}.passed-jobs-group>summary{padding:15px 18px;color:#187044;font-weight:800;cursor:pointer;list-style:none}.passed-jobs-group>summary:before{content:"✓";display:inline-grid;place-items:center;width:24px;height:24px;margin-right:9px;border-radius:50%;background:#d7f3e3}.passed-jobs-group>summary:after{content:"Show details";float:right;color:#6f8178;font-size:11px;font-weight:700;text-transform:uppercase}.passed-jobs-group[open]>summary:after{content:"Hide details"}.passed-jobs-body{padding:0 14px 14px}.passed-jobs-body .validation-job{box-shadow:none;opacity:.9}
-.report-hero{--mx:50%;--my:50%;min-height:330px;display:flex;align-items:center;position:relative;padding:48px 64px;isolation:isolate;background:linear-gradient(118deg,#071827 0%,#102e48 48%,#3b203b 76%,#710d29 115%);overflow:hidden}
+.report-hero{--mx:50%;--my:50%;min-height:260px;display:flex;align-items:center;position:relative;padding:30px 56px;isolation:isolate;background:linear-gradient(118deg,#071827 0%,#102e48 48%,#3b203b 76%,#710d29 115%);overflow:hidden}
 .report-hero:before{content:"";position:absolute;z-index:-4;inset:0;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(90deg,#000 0%,transparent 72%);opacity:.55}
 .report-hero:after{content:"";position:absolute;z-index:-1;inset:0;background:radial-gradient(500px circle at var(--mx) var(--my),#4da3ff20,transparent 55%);transition:background .08s linear;pointer-events:none}
 .hero-aurora{position:absolute;z-index:-3;border-radius:50%;filter:blur(2px);opacity:.65;pointer-events:none}.hero-aurora.one{width:560px;height:560px;right:-120px;top:-310px;background:radial-gradient(circle,#ff325b42 0%,#ff325b0d 48%,transparent 70%);animation:auroraOne 11s ease-in-out infinite alternate}.hero-aurora.two{width:460px;height:460px;right:260px;bottom:-350px;background:radial-gradient(circle,#348cff35 0%,#348cff0d 48%,transparent 70%);animation:auroraTwo 13s ease-in-out infinite alternate}
 .hero-rings{position:absolute;z-index:-2;right:-90px;top:-155px;width:600px;height:600px;border:1px solid #ffffff17;border-radius:50%;box-shadow:0 0 0 68px #ffffff08,0 0 0 136px #ffffff05;animation:heroSpin 45s linear infinite}.hero-rings:after{content:"";position:absolute;inset:90px;border:1px dashed #ff78932e;border-radius:50%}
-.hero-content{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 330px;align-items:center;gap:64px}.hero-copy{position:relative;animation:heroEnter .8s cubic-bezier(.2,.8,.2,1) both}.hero-brand{display:flex;align-items:center;gap:13px;margin-bottom:30px}.hero-mark{width:50px;height:50px;display:grid;place-items:center;border:1px solid #ffffff38;border-radius:15px;background:linear-gradient(145deg,#ffffff20,#ffffff08);box-shadow:inset 0 1px #ffffff40,0 14px 30px #00000024;color:#fff;font-size:14px;font-weight:900;letter-spacing:1px;backdrop-filter:blur(10px);transform:rotate(-3deg);transition:transform .3s ease,box-shadow .3s ease}.hero-mark:hover{transform:rotate(3deg) scale(1.08);box-shadow:inset 0 1px #ffffff50,0 18px 36px #00000030,0 0 24px #4da3ff35}
-.hero-kicker{display:flex;align-items:center;gap:9px;color:#ff93a6;font-size:12px;font-weight:850;letter-spacing:2px;text-transform:uppercase}.hero-live-dot{width:8px;height:8px;border-radius:50%;background:#ff4564;box-shadow:0 0 0 5px #ff45641f,0 0 18px #ff4564;animation:livePulse 2s ease-out infinite}.report-hero h1{margin:0;font-size:clamp(40px,5vw,70px);line-height:.98;letter-spacing:-3px;text-wrap:balance}.report-hero h1 .hero-gradient{display:block;background:linear-gradient(100deg,#fff 8%,#dceeff 45%,#ff9daf 92%);background-size:180% auto;background-clip:text;-webkit-background-clip:text;color:transparent;animation:titleShimmer 8s ease-in-out infinite}.hero-subtitle{max-width:720px;margin:20px 0 0;color:#c5d5e4;font-size:17px;line-height:1.6}.hero-pills{display:flex;gap:9px;flex-wrap:wrap;margin-top:25px}.hero-pill{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #ffffff21;border-radius:999px;background:#ffffff0c;color:#bcd0e1;font-size:11px;font-weight:750;backdrop-filter:blur(8px)}.hero-pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#4da3ff;box-shadow:0 0 10px #4da3ff}
-.header-meta{position:relative;min-width:0;gap:11px;animation:heroEnter .8s .14s cubic-bezier(.2,.8,.2,1) both}.header-meta:before{content:"RUN SNAPSHOT";display:block;margin:0 0 3px 4px;color:#ffffff73;font-size:10px;font-weight:850;letter-spacing:1.7px}.header-meta-item{position:relative;overflow:hidden;padding:13px 15px;border-color:#ffffff27;border-radius:13px;background:linear-gradient(120deg,#ffffff16,#ffffff09);box-shadow:inset 0 1px #ffffff30,0 10px 30px #00000015;transition:transform .2s ease,border-color .2s ease,background .2s ease}.header-meta-item:hover{transform:translateX(-5px);border-color:#ffffff50;background:#ffffff1c}.header-meta-item:after{content:"";position:absolute;inset:0 auto 0 -80%;width:45%;background:linear-gradient(90deg,transparent,#ffffff13,transparent);transform:skewX(-18deg);animation:metaShine 8s ease-in-out infinite}.header-meta-item.report-date{border-color:#ff66834d;background:linear-gradient(120deg,#e3193730,#ffffff0b)}.header-meta-item strong{font-size:14px}.header-meta-item.azure-passed strong{display:flex;align-items:center;gap:8px}.header-meta-item.azure-passed strong:before{content:"✓";width:20px;height:20px;display:grid;place-items:center;border-radius:50%;background:#43d88924;color:#68efa8;font-size:11px;box-shadow:0 0 16px #43d88920}
+.hero-content{width:100%;display:grid;grid-template-columns:minmax(0,1fr) 310px;align-items:center;gap:48px}.hero-copy{position:relative;animation:heroEnter .8s cubic-bezier(.2,.8,.2,1) both}.hero-brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.hero-mark{width:44px;height:44px;display:grid;place-items:center;border:1px solid #ffffff38;border-radius:13px;background:linear-gradient(145deg,#ffffff20,#ffffff08);box-shadow:inset 0 1px #ffffff40,0 14px 30px #00000024;color:#fff;font-size:13px;font-weight:900;letter-spacing:1px;backdrop-filter:blur(10px);transform:rotate(-3deg);transition:transform .3s ease,box-shadow .3s ease}.hero-mark:hover{transform:rotate(3deg) scale(1.08);box-shadow:inset 0 1px #ffffff50,0 18px 36px #00000030,0 0 24px #4da3ff35}
+.hero-kicker{display:flex;align-items:center;gap:9px;color:#ff93a6;font-size:11px;font-weight:850;letter-spacing:2px;text-transform:uppercase}.hero-live-dot{width:8px;height:8px;border-radius:50%;background:#ff4564;box-shadow:0 0 0 5px #ff45641f,0 0 18px #ff4564;animation:livePulse 2s ease-out infinite}.report-hero h1{margin:0;font-size:clamp(36px,4.2vw,58px);line-height:1;letter-spacing:-2.5px;text-wrap:balance}.report-hero h1 .hero-gradient{display:block;background:linear-gradient(100deg,#fff 8%,#dceeff 45%,#ff9daf 92%);background-size:180% auto;background-clip:text;-webkit-background-clip:text;color:transparent;animation:titleShimmer 8s ease-in-out infinite}.hero-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}.hero-pill{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #ffffff21;border-radius:999px;background:#ffffff0c;color:#bcd0e1;font-size:10px;font-weight:750;backdrop-filter:blur(8px)}.hero-pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#4da3ff;box-shadow:0 0 10px #4da3ff}
+.header-meta{position:relative;min-width:0;gap:9px;animation:heroEnter .8s .14s cubic-bezier(.2,.8,.2,1) both}.header-meta:before{content:"RUN SNAPSHOT";display:block;margin:0 0 2px 4px;color:#ffffff73;font-size:9px;font-weight:850;letter-spacing:1.7px}.header-meta-item{position:relative;overflow:hidden;padding:10px 13px;border-color:#ffffff27;border-radius:12px;background:linear-gradient(120deg,#ffffff16,#ffffff09);box-shadow:inset 0 1px #ffffff30,0 10px 30px #00000015;transition:transform .2s ease,border-color .2s ease,background .2s ease}.header-meta-item:hover{transform:translateX(-5px);border-color:#ffffff50;background:#ffffff1c}.header-meta-item:after{content:"";position:absolute;inset:0 auto 0 -80%;width:45%;background:linear-gradient(90deg,transparent,#ffffff13,transparent);transform:skewX(-18deg);animation:metaShine 8s ease-in-out infinite}.header-meta-item.report-date{border-color:#ff66834d;background:linear-gradient(120deg,#e3193730,#ffffff0b)}.header-meta-item strong{font-size:13px}.header-meta-item.azure-passed strong{display:flex;align-items:center;gap:8px}.header-meta-item.azure-passed strong:before{content:"✓";width:18px;height:18px;display:grid;place-items:center;border-radius:50%;background:#43d88924;color:#68efa8;font-size:10px;box-shadow:0 0 16px #43d88920}
 .hero-scroll-line{position:absolute;left:64px;right:64px;bottom:0;height:1px;background:linear-gradient(90deg,#ff4964 0 11%,#ffffff32 11% 22%,transparent 22%)}.hero-scroll-line:after{content:"";position:absolute;left:0;top:-2px;width:90px;height:5px;border-radius:5px;background:linear-gradient(90deg,#ff294d,#ff6a82);box-shadow:0 0 18px #ff3d5f80;animation:lineGlow 3s ease-in-out infinite alternate}
 @keyframes heroEnter{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}@keyframes auroraOne{to{transform:translate(-70px,45px) scale(1.12)}}@keyframes auroraTwo{to{transform:translate(55px,-35px) scale(.92)}}@keyframes heroSpin{to{transform:rotate(360deg)}}@keyframes livePulse{0%{box-shadow:0 0 0 0 #ff456455,0 0 18px #ff4564}70%{box-shadow:0 0 0 9px #ff456400,0 0 18px #ff4564}100%{box-shadow:0 0 0 0 #ff456400,0 0 18px #ff4564}}@keyframes titleShimmer{0%,100%{background-position:0% center}50%{background-position:100% center}}@keyframes metaShine{0%,65%{left:-80%}85%,100%{left:150%}}@keyframes lineGlow{to{width:150px;filter:brightness(1.25)}}
 @media(max-width:900px){.summary{grid-template-columns:repeat(2,1fr)}.dashboard-toolbar{grid-template-columns:1fr}.toolbar-actions{justify-content:flex-start}.visible-count{text-align:left}}
 @media(max-width:980px){.report-hero{padding:42px}.hero-content{grid-template-columns:1fr;gap:34px}.header-meta{display:grid;grid-template-columns:repeat(3,1fr)}.header-meta:before{grid-column:1/-1}.hero-rings{right:-300px}.hero-scroll-line{left:42px;right:42px}}
 @media(max-width:700px){.wrap{margin:0;border-radius:0}.report-hero{min-height:auto;padding:34px 24px 42px}.hero-brand{margin-bottom:24px}.hero-mark{width:44px;height:44px}.report-hero h1{font-size:43px;letter-spacing:-2px}.hero-subtitle{font-size:15px}.hero-content{gap:28px}.header-meta{grid-template-columns:1fr}.hero-scroll-line{left:24px;right:24px}.hero-rings{right:-420px}.summary{padding:18px}.content{padding:24px 16px}.report-actions{width:100%;margin-top:8px}.report-action{flex:1}.test-card>summary{padding:15px}.test-number{min-width:58px}.test-status{margin-left:72px}.body{padding:18px 14px}.equipment-filter{align-items:flex-start;flex-direction:column}.equipment-filter select{width:100%;margin-top:7px}.validation-job-metrics{align-items:flex-start;flex-wrap:wrap;justify-content:flex-start}.validation-job-metrics>span{min-width:64px}.summary{grid-template-columns:1fr 1fr}.metric{padding:18px}.metric strong{font-size:30px}.dashboard-toolbar{position:relative}.toolbar-actions .report-action{flex:0 1 auto}}
 @media(prefers-reduced-motion:reduce){.hero-aurora,.hero-rings,.hero-live-dot,.hero-gradient,.header-meta-item:after,.hero-scroll-line:after{animation:none!important}.report-hero:after{display:none}}
+.test-card.passed-warning{background:#fff;color:var(--ink)}.test-card.passed-warning>.body{background:#fff}.equipment-report tbody tr:not(.equipment-warning):not(.equipment-problem):not(.equipment-in-use):not(.validation-row-failed) td{background:#fff}.equipment-report tbody tr:not(.equipment-warning):not(.equipment-problem):not(.equipment-in-use):not(.validation-row-failed):nth-child(even) td{background:#f8fafb}
+.test-number,.test-card.passed-warning .test-number{background:linear-gradient(135deg,#2684ff,#1266a8);box-shadow:0 6px 14px #1266a830}.setup-card .test-number{background:#748190;box-shadow:none}
+.test-card.passed>summary{border-left-color:var(--green)}.test-card.passed-warning>summary{border-left-color:#e6a700}.test-card.failed>summary,.test-card.timedOut>summary,.test-card.interrupted>summary{border-left-color:var(--red)}.test-card.setup-card>summary{border-left-color:#8090a0}
+.test-card.failed .test-number,.test-card.timedOut .test-number,.test-card.interrupted .test-number{background:linear-gradient(135deg,var(--red),#bd1230);box-shadow:0 6px 14px #d7193530}
+.status-dot.passed,.status-dot.passed-warning,.status-dot.failed,.status-dot.timedOut,.status-dot.interrupted{animation:status-pulse 1.8s ease-in-out infinite;transform-origin:center}@keyframes status-pulse{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.38);filter:brightness(1.12)}}@media(prefers-reduced-motion:reduce){.status-dot{animation:none!important}}
+.metric{animation:metric-enter .55s cubic-bezier(.2,.8,.2,1) both}.metric:nth-child(2){animation-delay:.07s}.metric:nth-child(3){animation-delay:.14s}.metric:nth-child(4){animation-delay:.21s}.test-card{animation:test-card-enter .5s cubic-bezier(.2,.8,.2,1) both}.test-card:nth-of-type(2){animation-delay:.05s}.test-card:nth-of-type(3){animation-delay:.1s}.test-card:nth-of-type(4){animation-delay:.15s}.test-card:nth-of-type(5){animation-delay:.2s}.test-card:nth-of-type(6){animation-delay:.25s}.test-card:nth-of-type(n+7){animation-delay:.3s}.test-card:hover{transform:translateY(-2px)}.test-card[open]>.body{animation:body-reveal .32s cubic-bezier(.2,.8,.2,1) both}.test-card[open] .validation-passed,.test-card[open] .error,.test-card[open] .warning,.test-card[open] .comparison-card{animation:evidence-reveal .38s cubic-bezier(.2,.8,.2,1) both}.test-number{transition:transform .2s ease,box-shadow .2s ease}.test-card>summary:hover .test-number{transform:translateY(-1px) scale(1.04)}.badge.passed{animation:passed-glow 1.1s .45s ease-out both}.badge.passed-warning{animation:warning-glow 1.2s .45s ease-out both}@keyframes metric-enter{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes test-card-enter{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}@keyframes body-reveal{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:translateY(0)}}@keyframes evidence-reveal{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}@keyframes passed-glow{0%,100%{box-shadow:none}45%{box-shadow:0 0 0 7px #20a45a18}}@keyframes warning-glow{0%,100%{box-shadow:none}45%{box-shadow:0 0 0 7px #e6a70020}}@media(prefers-reduced-motion:reduce){.metric,.test-card,.test-card[open]>.body,.test-card[open] .validation-passed,.test-card[open] .error,.test-card[open] .warning,.test-card[open] .comparison-card,.badge{animation:none!important}.test-card:hover,.test-card>summary:hover .test-number{transform:none}}
 @media print{body{background:#fff}.wrap{margin:0;box-shadow:none;border:0}.report-hero{min-height:auto;padding:28px 34px;background:#102a40!important}.hero-aurora,.hero-rings,.hero-pills,.hero-scroll-line{display:none}.dashboard-toolbar,.report-actions{display:none!important}.test-card{break-inside:auto}.test-card[hidden]{display:none}.content{padding:22px}.summary{padding:18px 22px}.metric{box-shadow:none}}
-</style></head><body><main class="wrap"><header class="report-hero"><span class="hero-aurora one"></span><span class="hero-aurora two"></span><span class="hero-rings"></span><div class="hero-content"><div class="hero-copy"><div class="hero-brand"><span class="hero-mark">IBT</span><span class="hero-kicker"><span class="hero-live-dot"></span>Quality Automation</span></div><h1><span class="hero-gradient">IBT Hub Test Report</span></h1><p class="hero-subtitle">Dispatch intelligence, inspection integrity, and operational findings in one focused view.</p><div class="hero-pills"><span class="hero-pill">Automated validation</span><span class="hero-pill">Live evidence</span><span class="hero-pill">Audit-ready report</span></div></div><div class="header-meta"><div class="header-meta-item report-date"><span>Report Date</span><strong>${this.escape(reportDate)}</strong></div><div class="header-meta-item"><span>Generated</span><strong>${this.escape(generatedAt)}</strong></div><div class="header-meta-item${setupEntry?.status === 'passed' ? ' azure-passed' : ''}"><span>Azure setup</span><strong>${setupEntry?.status.toUpperCase() ?? 'NOT RUN'}</strong></div></div></div><span class="hero-scroll-line"></span></header><section class="summary"><button class="metric tests active" type="button" data-status-filter="all"><strong>${functionalEntries.length}</strong><span>Functional Tests</span></button><button class="metric success" type="button" data-status-filter="passed"><strong>${passed}</strong><span>Passed</span></button><button class="metric warning-metric" type="button" data-status-filter="warning"><strong>${warnings}</strong><span>Warnings</span></button><button class="metric failure" type="button" data-status-filter="failed"><strong>${failed}</strong><span>Failed</span></button></section><section class="content"><div class="section-heading"><div><h2>Test Cases</h2><span>Search, filter, and open a test to explore its evidence</span></div><div class="report-actions"><button class="report-action" type="button" data-action="expand">Expand all</button><button class="report-action" type="button" data-action="collapse">Collapse all</button></div></div><div class="dashboard-toolbar"><label class="search-wrap"><input class="global-search" type="search" placeholder="Search Job, equipment, Foreman, Inspector..." autocomplete="off" aria-label="Search report"></label><div class="toolbar-actions"><button class="report-action" type="button" data-action="issues">Open issues</button><button class="report-action" type="button" data-action="print">Print / PDF</button><span class="visible-count"></span></div></div><div class="no-results">No tests match the selected filter or search.</div>${testCards}</section></main><script>
+</style></head><body><main class="wrap"><header class="report-hero"><span class="hero-aurora one"></span><span class="hero-aurora two"></span><span class="hero-rings"></span><div class="hero-content"><div class="hero-copy"><div class="hero-brand"><span class="hero-mark">IBT</span><span class="hero-kicker"><span class="hero-live-dot"></span>Quality Automation</span></div><h1><span class="hero-gradient">IBT Hub Test Report</span></h1><div class="hero-pills"><span class="hero-pill">Automated validation</span><span class="hero-pill">Live evidence</span><span class="hero-pill">Audit-ready report</span></div></div><div class="header-meta"><div class="header-meta-item report-date"><span>Report Date</span><strong>${this.escape(reportDate)}</strong></div><div class="header-meta-item"><span>Generated</span><strong>${this.escape(generatedAt)}</strong></div><div class="header-meta-item${setupEntry?.status === 'passed' ? ' azure-passed' : ''}"><span>Azure setup</span><strong>${setupEntry?.status.toUpperCase() ?? 'NOT RUN'}</strong></div></div></div><span class="hero-scroll-line"></span></header><section class="summary"><button class="metric tests active" type="button" data-status-filter="all"><strong>${functionalEntries.length}</strong><span>Functional Tests</span></button><button class="metric success" type="button" data-status-filter="passed"><strong>${passed}</strong><span>Passed</span></button><button class="metric warning-metric" type="button" data-status-filter="warning"><strong>${warnings}</strong><span>Warnings</span></button><button class="metric failure" type="button" data-status-filter="failed"><strong>${failed}</strong><span>Failed</span></button></section><section class="content"><div class="section-heading"><div><h2>Test Cases</h2><span>Search, filter, and open a test to explore its evidence</span></div><div class="report-actions"><button class="report-action" type="button" data-action="expand">Expand all</button><button class="report-action" type="button" data-action="collapse">Collapse all</button></div></div><div class="dashboard-toolbar"><label class="search-wrap"><input class="global-search" type="search" placeholder="Search Job, equipment, Foreman, Inspector..." autocomplete="off" aria-label="Search report"></label><div class="toolbar-actions"><button class="report-action" type="button" data-action="issues">Open issues</button><button class="report-action" type="button" data-action="print">Print / PDF</button><span class="visible-count"></span></div></div><div class="no-results">No tests match the selected filter or search.</div>${testCards}</section></main><script>
 var storageKey='ibt-report-view-v1';var cards=Array.from(document.querySelectorAll('.test-card'));var search=document.querySelector('.global-search');var noResults=document.querySelector('.no-results');var visibleCount=document.querySelector('.visible-count');var currentFilter='all';
 var hero=document.querySelector('.report-hero');if(hero&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){hero.addEventListener('pointermove',function(event){var rect=hero.getBoundingClientRect();hero.style.setProperty('--mx',event.clientX-rect.left+'px');hero.style.setProperty('--my',event.clientY-rect.top+'px');});hero.addEventListener('pointerleave',function(){hero.style.setProperty('--mx','50%');hero.style.setProperty('--my','50%');});}
 function saveView(){try{localStorage.setItem(storageKey,JSON.stringify({filter:currentFilter,search:search.value,open:cards.filter(function(card){return card.open;}).map(function(card){return card.dataset.cardId;})}));}catch(error){void error;}}
 function applyView(){var query=search.value.trim().toLowerCase();var visibleFunctional=0;cards.forEach(function(card){var isSetup=card.classList.contains('setup-card');var status=card.dataset.status;var statusMatch=currentFilter==='all'||isSetup||(currentFilter==='warning'?status==='passed-warning':currentFilter==='failed'?['failed','timedOut','interrupted'].includes(status):status==='passed');var searchMatch=!query||card.textContent.toLowerCase().includes(query);card.hidden=!(statusMatch&&searchMatch);if(!card.hidden&&!isSetup)visibleFunctional+=1;if(query&&searchMatch)card.open=true;});document.querySelectorAll('[data-status-filter]').forEach(function(button){button.classList.toggle('active',button.dataset.statusFilter===currentFilter);});visibleCount.textContent=visibleFunctional+' tests shown';noResults.style.display=visibleFunctional===0?'block':'none';saveView();}
 document.querySelectorAll('[data-status-filter]').forEach(function(button){button.addEventListener('click',function(){currentFilter=button.dataset.statusFilter;applyView();document.querySelector('.content').scrollIntoView({behavior:'smooth',block:'start'});});});
 search.addEventListener('input',applyView);cards.forEach(function(card){card.addEventListener('toggle',saveView);});
-document.querySelectorAll('.job-search').forEach(function(input){input.addEventListener('input',function(){var report=input.closest('.dispatch-report');var query=input.value.trim().toLowerCase();var visible=0;report.querySelectorAll('[data-job-number]').forEach(function(item){var match=item.dataset.jobNumber.toLowerCase().includes(query);item.hidden=!match;if(match)visible+=1;});report.querySelector('.search-empty').style.display=visible===0?'block':'none';});});
-document.querySelectorAll('.equipment-use-filter').forEach(function(select){select.addEventListener('change',function(){var report=select.closest('.equipment-report');var visible=0;report.querySelectorAll('tbody tr[data-in-use]').forEach(function(row){var show=select.value==='all'||row.dataset.inUse===select.value;row.hidden=!show;if(show)visible+=1;});report.querySelector('.equipment-visible-count').textContent=visible+' equipment items shown';});});
+document.querySelectorAll('.job-search').forEach(function(input){input.addEventListener('input',function(){var report=input.closest('.dispatch-report');var query=input.value.trim().toLowerCase();var visible=0;report.querySelectorAll('.dispatch-job[data-job-number]').forEach(function(item){var match=item.dataset.jobNumber.toLowerCase().includes(query);item.hidden=!match;if(match)visible+=1;});report.querySelectorAll('.job-error[data-job-number]').forEach(function(item){item.hidden=false;});report.querySelector('.search-empty').style.display=visible===0?'block':'none';});});
+function applyEquipmentFilters(report){var select=report.querySelector('.equipment-use-filter');var missingButton=report.querySelector('.missing-foreman-filter');var missingOnly=missingButton&&missingButton.classList.contains('active');var visible=0;report.querySelectorAll('tbody tr[data-in-use]').forEach(function(row){var matchesUse=!select||select.value==='all'||row.dataset.inUse===select.value;var matchesForeman=!missingOnly||row.dataset.missingForeman==='true';var show=matchesUse&&matchesForeman;row.hidden=!show;if(show)visible+=1;});var count=report.querySelector('.equipment-visible-count');if(count)count.textContent=visible+' equipment items shown';}
+document.querySelectorAll('.equipment-use-filter').forEach(function(select){select.addEventListener('change',function(){applyEquipmentFilters(select.closest('.equipment-report'));});});
+document.querySelectorAll('.missing-foreman-filter').forEach(function(button){button.addEventListener('click',function(){var report=button.closest('.equipment-report');var active=!button.classList.contains('active');button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));var select=report.querySelector('.equipment-use-filter');if(select)select.value='all';applyEquipmentFilters(report);});});
 document.querySelectorAll('.report-action').forEach(function(button){button.addEventListener('click',function(){var action=button.dataset.action;if(action==='expand'||action==='collapse'){cards.filter(function(card){return !card.hidden;}).forEach(function(card){card.open=action==='expand';});}if(action==='issues'){currentFilter='all';search.value='';cards.forEach(function(card){card.hidden=false;card.open=['passed-warning','failed','timedOut','interrupted'].includes(card.dataset.status);});applyView();}if(action==='print'){window.print();}saveView();});});
 try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){currentFilter=saved.filter||'all';search.value=saved.search||'';var openSet=new Set(saved.open||[]);cards.forEach(function(card){card.open=openSet.has(card.dataset.cardId);});}else{cards.forEach(function(card){card.open=['passed-warning','failed','timedOut','interrupted'].includes(card.dataset.status);});}}catch(error){void error;}applyView();
 </script></body></html>`;
@@ -227,27 +258,35 @@ try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){cur
           ? this.renderImageInspectionValidation(entry.imageInspectionValidation)
           : entry.equipmentReport
             ? this.renderEquipmentReport(entry.equipmentReport)
-            : entry.inspectorValidation
-              ? this.renderInspectorValidation(entry.inspectorValidation)
-              : jobs.length
-                ? `<h3>Extracted Job Numbers</h3><div class="jobs">${jobs.map((job) => `<div class="job">${this.escape(job)}</div>`).join('')}</div>`
-                : `<div class="empty">${this.escape(entry.jobNumbers?.message ?? (entry.status === 'passed' ? 'Authentication setup completed successfully.' : 'No structured evidence attached to this test.'))}</div>`;
+            : entry.excelEquipmentValidation
+              ? this.renderExcelEquipmentValidation(entry.excelEquipmentValidation)
+              : entry.inspectorValidation
+                ? this.renderInspectorValidation(entry.inspectorValidation)
+                : entry.jobNumbers?.jobs
+                  ? this.renderJobNumberDetails(entry.jobNumbers)
+                  : jobs.length
+                    ? `<h3>Extracted Job Numbers</h3><div class="jobs">${jobs.map((job) => `<div class="job">${this.escape(job)}</div>`).join('')}</div>`
+                    : `<div class="empty">${this.escape(entry.jobNumbers?.message ?? (entry.status === 'passed' ? 'Authentication setup completed successfully.' : 'No structured evidence attached to this test.'))}</div>`;
     const isSetup = testNumber === undefined;
     const displayName = this.getDisplayName(entry);
-    const statusClass =
-      entry.status === 'passed' && (entry.inspectorValidation?.missingForemanCount ?? 0) > 0
-        ? 'passed-warning'
-        : entry.status;
+    const statusClass = entry.status === 'passed' && this.hasWarning(entry) ? 'passed-warning' : entry.status;
     const statusLabel = statusClass === 'passed-warning' ? 'PASSED WITH WARNING' : entry.status.toUpperCase();
     const error =
       entry.error &&
       !entry.inspectionValidation &&
       !entry.imageInspectionValidation &&
       !entry.equipmentReport &&
+      !entry.excelEquipmentValidation &&
       !entry.inspectorValidation
         ? `<div class="error">${this.escape(entry.error)}</div>`
         : '';
-    return `<details class="test-card ${isSetup ? 'setup-card' : ''}" data-card-id="${isSetup ? 'setup' : `test-${testNumber}`}" data-status="${statusClass}"><summary><span class="test-head-left"><span class="test-number">${isSetup ? 'SETUP' : `TEST ${testNumber}`}</span><span><span class="test-name">${this.escape(displayName)}</span><span class="test-original">${this.escape(entry.title)}</span></span></span><span class="test-status"><span class="status-dot ${statusClass}"></span><span class="badge ${statusClass}">${statusLabel}</span></span></summary><div class="body"><div class="meta">Duration: ${(entry.duration / 1000).toFixed(1)}s${entry.jobNumbers ? ` &bull; Extracted: ${entry.jobNumbers.count} Job Numbers` : ''}${entry.dispatchDetails ? ` &bull; Jobs inspected: ${entry.dispatchDetails.jobCount}` : ''}</div>${error}${evidence}</div></details>`;
+    return `<details class="test-card ${statusClass} ${isSetup ? 'setup-card' : ''}" data-card-id="${isSetup ? 'setup' : `test-${testNumber}`}" data-status="${statusClass}"><summary><span class="test-head-left"><span class="test-number">${isSetup ? 'SETUP' : `TEST ${testNumber}`}</span><span><span class="test-name">${this.escape(displayName)}</span><span class="test-original">${this.escape(entry.title)}</span></span></span><span class="test-status"><span class="status-dot ${statusClass}"></span><span class="badge ${statusClass}">${statusLabel}</span></span></summary><div class="body"><div class="meta">Duration: ${(entry.duration / 1000).toFixed(1)}s${entry.jobNumbers ? ` &bull; Extracted: ${entry.jobNumbers.count} Job Numbers` : ''}${entry.dispatchDetails ? ` &bull; Jobs inspected: ${entry.dispatchDetails.jobCount}` : ''}</div>${error}${evidence}</div></details>`;
+  }
+
+  private hasWarning(entry: ReportEntry): boolean {
+    return (
+      (entry.equipmentReport?.missingForemanCount ?? 0) > 0 || (entry.inspectorValidation?.missingForemanCount ?? 0) > 0
+    );
   }
 
   private isSetupEntry(entry: ReportEntry): boolean {
@@ -256,6 +295,9 @@ try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){cur
 
   private getDisplayName(entry: ReportEntry): string {
     if (this.isSetupEntry(entry)) return 'Azure Authentication Setup';
+    if (entry.excelEquipmentValidation || /@excel-equipment-validation\b/i.test(entry.title)) {
+      return 'Excel Equipment Report Validation';
+    }
     if (entry.dispatchDetails || /extracts dispatch and equipment details/i.test(entry.title)) {
       return 'Dispatch Data Extraction';
     }
@@ -331,15 +373,130 @@ try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){cur
     return `<div class="equipment-report">${summary}<div class="error">Problem only when an equipment row has an image link and Inspection Submitted Today is not Yes. An inspection without images is allowed.</div>${jobs}</div>`;
   }
 
+  private renderJobNumberDetails(artifact: JobNumbersArtifact): string {
+    const jobs = artifact.jobs ?? [];
+    const skippedJobs = artifact.skippedJobs ?? [];
+    const search =
+      jobs.length > 0
+        ? '<label><strong>Search Job Number</strong><input class="job-search" type="search" placeholder="Enter JN, for example 8815" autocomplete="off"></label><div class="search-empty">No matching Job Number found.</div>'
+        : '';
+    const details = jobs
+      .map((job, index) => this.renderDispatchJob(job, index, artifact.imagesIncluded !== false, false))
+      .join('');
+    const skipped = skippedJobs.length
+      ? `<section class="job-errors"><h3>Jobs without extracted details (${skippedJobs.length})</h3>${skippedJobs
+          .map(
+            (job) =>
+              `<article class="job-error"><h4>JN ${this.escape(job.jobNumber)}</h4><p>${this.escape(job.reason)}</p><p class="job-error-url">${this.escape(job.pageUrl)}</p>${job.screenshotBase64 ? `<img src="data:image/png;base64,${job.screenshotBase64}" alt="Failed Job ${this.escape(job.jobNumber)}">` : ''}</article>`
+          )
+          .join('')}</section>`
+      : '';
+    const empty =
+      jobs.length === 0 && skippedJobs.length === 0
+        ? `<div class="empty">${this.escape(artifact.message ?? 'No Job Numbers were found.')}</div>`
+        : '';
+    const equipmentValidation = artifact.equipmentValidation
+      ? artifact.equipmentValidation.missingCount === 0 && artifact.equipmentValidation.mismatchCount === 0
+        ? `<div class="validation-passed">Eq Report cross-check passed: all ${artifact.equipmentValidation.reportRowCount} rows match the extracted Job details, including Description, Inspected, Pictures and Date.</div>`
+        : `<div class="error">Eq Report cross-check failed: ${artifact.equipmentValidation.missingCount} missing equipment and ${artifact.equipmentValidation.mismatchCount} field mismatches.</div>${
+            artifact.equipmentValidation.missingEquipment.length
+              ? `<div class="table-wrap"><table><thead><tr><th>Job</th><th>Equipment</th><th>Description</th></tr></thead><tbody>${artifact.equipmentValidation.missingEquipment
+                  .map(
+                    (item) =>
+                      `<tr class="validation-row-failed"><td>${this.escape(item.jobNumber)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.description)}</td></tr>`
+                  )
+                  .join('')}</tbody></table></div>`
+              : ''
+          }${artifact.equipmentValidation.mismatches.length ? `<div class="table-wrap"><table><thead><tr><th>Job</th><th>Equipment</th><th>Field</th><th>Eq Report</th><th>Job Details</th></tr></thead><tbody>${artifact.equipmentValidation.mismatches.map((item) => `<tr class="validation-row-failed"><td>${this.escape(item.jobNumber)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.field)}</td><td>${this.escape(item.equipmentReportValue)}</td><td>${this.escape(item.jobDetailsValue)}</td></tr>`).join('')}</tbody></table></div>` : ''}`
+      : '';
+    return `<div class="dispatch-report"><div class="meta">Job Numbers: ${artifact.count} &bull; Details extracted: ${jobs.length} &bull; Skipped: ${skippedJobs.length}<br>Click a Job Number to open all equipment sections and inspection details.</div>${equipmentValidation}${search}${details}${empty}${skipped}</div>`;
+  }
+
   private renderEquipmentReport(artifact: EquipmentReportArtifact): string {
     const inUseCount = artifact.equipment.filter((item) => item.inUse).length;
     const reportDate = `<div><strong>Report Date</strong>${this.escape(artifact.reportDate)}</div>`;
-    return `<div class="equipment-report"><div class="equipment-summary">${reportDate}<div><strong>Total Equipment</strong>${artifact.totalEquipment}</div><div><strong>Reported In Use</strong>${artifact.inUse}</div><div><strong>Key On rows (In Use)</strong>${inUseCount}</div><div><strong>Not In Use</strong>${artifact.notInUse}</div><div><strong>Inspected</strong>${artifact.inspected}</div><div><strong>Missing Inspections</strong>${artifact.missingInspections}</div><div><strong>Active Alerts</strong>${artifact.activeAlerts}</div><div><strong>Missing Foreman</strong>${artifact.missingForemanCount}</div><div><strong>Inspected without Inspector</strong>${artifact.missingInspectorCount}</div><div><strong>Extracted Rows</strong>${artifact.extractedCount}</div></div><div class="equipment-filter"><label><strong>In Use filter</strong> <select class="equipment-use-filter"><option value="all">All equipment</option><option value="true" selected>In Use only</option><option value="false">Not In Use only</option></select></label><span class="equipment-visible-count">${inUseCount} equipment items shown</span></div><div class="table-wrap"><table><thead><tr><th>Job</th><th>Foreman</th><th>Inspector</th><th>Equipment</th><th>Description</th><th>In Use</th><th>Inspected</th><th>Date</th><th>Pictures</th><th>Status</th><th>Reason</th></tr></thead><tbody>${artifact.equipment
+    const missingForemanCard =
+      artifact.missingForemanCount > 0
+        ? `<button class="missing-foreman-filter" type="button" aria-pressed="false" title="Show only equipment without a Foreman"><strong>Missing Foreman</strong>${artifact.missingForemanCount}</button>`
+        : '<div><strong>Missing Foreman</strong>0</div>';
+    const excelValidation = artifact.excelValidation
+      ? artifact.excelValidation.mismatchCount === 0 &&
+        artifact.excelValidation.uiRowCount === artifact.excelValidation.excelRowCount
+        ? `<div class="validation-passed">Excel validation passed: all ${artifact.excelValidation.uiRowCount} rows and values are identical to the UI report.</div>`
+        : `<div class="error">Excel validation failed: UI rows ${artifact.excelValidation.uiRowCount}, Excel rows ${artifact.excelValidation.excelRowCount}, mismatched values ${artifact.excelValidation.mismatchCount}.</div><div class="table-wrap"><table><thead><tr><th>Row</th><th>Column</th><th>UI Value</th><th>Excel Value</th></tr></thead><tbody>${artifact.excelValidation.mismatches
+            .map(
+              (item) =>
+                `<tr class="validation-row-failed"><td>${item.row}</td><td>${this.escape(item.column)}</td><td>${this.escape(item.uiValue)}</td><td>${this.escape(item.excelValue)}</td></tr>`
+            )
+            .join('')}</tbody></table></div>`
+      : '';
+    const jobValidation = artifact.jobValidation
+      ? artifact.jobValidation.missingCount === 0 && artifact.jobValidation.mismatchCount === 0
+        ? `<div class="validation-passed">Job Details validation passed: all ${artifact.jobValidation.reportRowCount} Equipment Report rows match the previously extracted Job Details, including Description, Inspected, Pictures and Date.</div>`
+        : `<div class="error">Job Details validation failed: ${artifact.jobValidation.missingCount} missing equipment and ${artifact.jobValidation.mismatchCount} field mismatches.</div>${artifact.jobValidation.missingEquipment.length ? `<div class="table-wrap"><table><thead><tr><th>Job</th><th>Equipment</th><th>Description</th></tr></thead><tbody>${artifact.jobValidation.missingEquipment.map((item) => `<tr class="validation-row-failed"><td>${this.escape(item.jobNumber)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.description)}</td></tr>`).join('')}</tbody></table></div>` : ''}${artifact.jobValidation.mismatches.length ? `<div class="table-wrap"><table><thead><tr><th>Job</th><th>Equipment</th><th>Field</th><th>Eq Report</th><th>Job Details</th></tr></thead><tbody>${artifact.jobValidation.mismatches.map((item) => `<tr class="validation-row-failed"><td>${this.escape(item.jobNumber)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.field)}</td><td>${this.escape(item.equipmentReportValue)}</td><td>${this.escape(item.jobDetailsValue)}</td></tr>`).join('')}</tbody></table></div>` : ''}`
+      : '';
+    return `<div class="equipment-report"><div class="equipment-summary">${reportDate}<div><strong>Total Equipment</strong>${artifact.totalEquipment}</div><div><strong>Reported In Use</strong>${artifact.inUse}</div><div><strong>Key On rows (In Use)</strong>${inUseCount}</div><div><strong>Not In Use</strong>${artifact.notInUse}</div><div><strong>Inspected</strong>${artifact.inspected}</div><div><strong>Missing Inspections</strong>${artifact.missingInspections}</div><div><strong>Active Alerts</strong>${artifact.activeAlerts}</div>${missingForemanCard}<div><strong>Inspected without Inspector</strong>${artifact.missingInspectorCount}</div><div><strong>Extracted Rows</strong>${artifact.extractedCount}</div></div>${excelValidation}${jobValidation}<div class="equipment-filter"><label><strong>In Use filter</strong> <select class="equipment-use-filter"><option value="all">All equipment</option><option value="true" selected>In Use only</option><option value="false">Not In Use only</option></select></label><span class="equipment-visible-count">${inUseCount} equipment items shown</span></div><div class="table-wrap"><table><thead><tr><th>Job</th><th>Foreman</th><th>Inspector</th><th>Equipment</th><th>Description</th><th>In Use</th><th>Inspected</th><th>Date</th><th>Pictures</th><th>Status</th><th>Reason</th></tr></thead><tbody>${artifact.equipment
       .map(
         (item) =>
-          `<tr data-in-use="${String(item.inUse)}" ${item.inUse ? '' : 'hidden'} class="${item.missingInspector ? 'equipment-problem' : item.missingForeman ? 'equipment-warning' : item.inUse ? 'equipment-in-use' : ''}"><td>${this.escape(item.jobNumber)}</td><td>${item.missingForeman ? '<strong class="warning-text">MISSING</strong>' : this.escape(item.foreman)}</td><td>${item.missingInspector ? '<strong class="failed">MISSING</strong>' : this.escape(item.inspector)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.description)}</td><td class="${item.inUse ? 'key-on' : ''}">${this.escape(item.inUse ? 'Yes — Key On' : item.inUseLabel)}</td><td>${this.escape(item.inspectedLabel)}</td><td>${this.escape(item.date)}</td><td>${this.escape(item.pictures)}</td><td>${this.escape(item.status)}</td><td>${this.escape(item.reason)}</td></tr>`
+          `<tr data-in-use="${String(item.inUse)}" data-missing-foreman="${String(item.missingForeman)}" ${item.inUse ? '' : 'hidden'} class="${item.missingInspector ? 'equipment-problem' : item.missingForeman ? 'equipment-warning' : item.inUse ? 'equipment-in-use' : ''}"><td>${this.escape(item.jobNumber)}</td><td>${item.missingForeman ? '<strong class="warning-text">MISSING</strong>' : this.escape(item.foreman)}</td><td>${item.missingInspector ? '<strong class="failed">MISSING</strong>' : this.escape(item.inspector)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.description)}</td><td class="${item.inUse ? 'key-on' : ''}">${this.escape(item.inUse ? 'Yes — Key On' : item.inUseLabel)}</td><td>${this.escape(item.inspectedLabel)}</td><td>${this.escape(item.date)}</td><td>${this.escape(item.pictures)}</td><td>${this.escape(item.status)}</td><td>${this.escape(item.reason)}</td></tr>`
       )
       .join('')}</tbody></table></div></div>`;
+  }
+
+  private renderExcelEquipmentValidation(artifact: ExcelEquipmentReportArtifact): string {
+    const excel = artifact.excelValidation;
+    const jobs = artifact.jobValidation;
+    const groupedMismatches = new Map<string, typeof jobs.mismatches>();
+    for (const mismatch of jobs.mismatches) {
+      const key = `${mismatch.jobNumber}\u0000${mismatch.equipmentNumber}`;
+      groupedMismatches.set(key, [...(groupedMismatches.get(key) ?? []), mismatch]);
+    }
+    const comparisonCards = [...groupedMismatches.values()]
+      .map((items) => {
+        const first = items[0];
+        if (!first) return '';
+        const differingFields = new Set(items.map((item) => item.field));
+        const statusClass = (field: 'Inspected' | 'Pictures', sourceIndex: 0 | 1 | 2): string => {
+          if (!differingFields.has(field)) return '';
+          const mismatch = items.find((item) => item.field === field);
+          if (!mismatch) return ' different';
+          const values = [mismatch.excelValue, mismatch.equipmentReportValue, mismatch.jobDetailsValue].map((value) =>
+            value.trim().toUpperCase()
+          );
+          const otherValues = values.filter((_, index) => index !== sourceIndex);
+          return otherValues[0] === otherValues[1] && values[sourceIndex] !== otherValues[0]
+            ? ' different outlier'
+            : ' different';
+        };
+        const source = (name: string, inspected: string, pictures: string, sourceIndex: 0 | 1 | 2): string => {
+          const inspectedClass = statusClass('Inspected', sourceIndex);
+          const picturesClass = statusClass('Pictures', sourceIndex);
+          const hasOutlier = inspectedClass.includes('outlier') || picturesClass.includes('outlier');
+          return `<div class="comparison-source${hasOutlier ? ' has-outlier' : ''}"><h5>${name}</h5><div class="comparison-values"><div class="comparison-value${inspectedClass}"><strong>Inspected</strong>${this.escape(inspected)}</div><div class="comparison-value${picturesClass}"><strong>Pictures</strong>${this.escape(pictures)}</div></div></div>`;
+        };
+        const problems = items
+          .map(
+            (item) =>
+              `${this.escape(item.field)}: Excel <strong>${this.escape(item.excelValue)}</strong> · Equipment Report <strong>${this.escape(item.equipmentReportValue)}</strong> · All Dispatched <strong>${this.escape(item.jobDetailsValue)}</strong>`
+          )
+          .join('<br>');
+        const otherDifferences = items.filter((item) => item.field === 'Description' || item.field === 'Date');
+        return `<section class="comparison-card"><div class="comparison-title"><strong>Job ${this.escape(first.jobNumber)}</strong><span>Equipment ${this.escape(first.equipmentNumber)}</span></div><p class="comparison-problem">Problem: ${problems}</p><div class="comparison-sources">${source('Excel', first.excelInspected, first.excelPictures, 0)}${source('Equipment Report', first.equipmentReportInspected, first.equipmentReportPictures, 1)}${source('All Dispatched Equipment', first.allDispatchedInspected, first.allDispatchedPictures, 2)}</div>${otherDifferences.length ? `<div class="comparison-other">Other compared fields: ${otherDifferences.map((item) => `${this.escape(item.field)} — Excel: ${this.escape(item.excelValue)}, Equipment Report: ${this.escape(item.equipmentReportValue)}, All Dispatched: ${this.escape(item.jobDetailsValue)}`).join('; ')}</div>` : ''}</section>`;
+      })
+      .join('');
+    const excelResult =
+      excel.mismatchCount === 0 && excel.uiRowCount === excel.excelRowCount
+        ? `<div class="validation-passed">Excel validation passed: all ${excel.uiRowCount} rows and values are identical to the Equipment Report UI.</div>`
+        : `<div class="error">Excel validation failed: UI rows ${excel.uiRowCount}, Excel rows ${excel.excelRowCount}, mismatched values ${excel.mismatchCount}.</div>${excel.mismatches.length ? `<div class="table-wrap"><table><thead><tr><th>Row</th><th>Column</th><th>UI Value</th><th>Excel Value</th></tr></thead><tbody>${excel.mismatches.map((item) => `<tr class="validation-row-failed"><td>${item.row}</td><td>${this.escape(item.column)}</td><td>${this.escape(item.uiValue)}</td><td>${this.escape(item.excelValue)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+    const jobResult =
+      jobs.missingCount === 0 && jobs.mismatchCount === 0
+        ? `<div class="validation-passed">Three-way validation passed: Excel, Equipment Report UI and All Dispatched Equipment match for all ${jobs.reportRowCount} rows, including Description, Inspected, Pictures and Date.</div>`
+        : `<div class="error">Three-way validation failed: ${jobs.missingCount} missing equipment and ${jobs.mismatchCount} field mismatches between Excel, Equipment Report UI and All Dispatched Equipment.</div>${jobs.missingEquipment.length ? `<div class="table-wrap"><table><thead><tr><th>Job</th><th>Equipment</th><th>Description</th></tr></thead><tbody>${jobs.missingEquipment.map((item) => `<tr class="validation-row-failed"><td>${this.escape(item.jobNumber)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.description)}</td></tr>`).join('')}</tbody></table></div>` : ''}${comparisonCards ? `<div class="comparison-list">${comparisonCards}</div>` : ''}`;
+    const imageWithoutInspectionResult =
+      jobs.imageWithoutInspectionCount === 0
+        ? '<div class="validation-passed">Image integrity passed: no source reports Pictures Yes while Inspected is No.</div>'
+        : `<div class="error">Image integrity failed: ${jobs.imageWithoutInspectionCount} equipment rows report Pictures Yes while Inspected is No.</div><div class="table-wrap"><table><thead><tr><th>Job</th><th>Equipment</th><th>Excel Inspected</th><th>Excel Pictures</th><th>Eq Report Inspected</th><th>Eq Report Pictures</th><th>All Dispatched Inspected</th><th>All Dispatched Pictures</th></tr></thead><tbody>${jobs.imageWithoutInspection.map((item) => `<tr class="validation-row-failed"><td>${this.escape(item.jobNumber)}</td><td>${this.escape(item.equipmentNumber)}</td><td>${this.escape(item.excelInspected)}</td><td>${this.escape(item.excelPictures)}</td><td>${this.escape(item.equipmentReportInspected)}</td><td>${this.escape(item.equipmentReportPictures)}</td><td>${this.escape(item.allDispatchedInspected)}</td><td>${this.escape(item.allDispatchedPictures)}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="excel-validation-report"><div class="equipment-summary"><div><strong>Report Date</strong>${this.escape(artifact.reportDate)}</div><div><strong>UI Rows</strong>${excel.uiRowCount}</div><div><strong>Excel Rows</strong>${excel.excelRowCount}</div><div><strong>Excel Differences</strong>${excel.mismatchCount}</div><div><strong>Missing in All Dispatched Equipment</strong>${jobs.missingCount}</div><div><strong>Field Differences</strong>${jobs.mismatchCount}</div><div><strong>Pictures without Inspection</strong>${jobs.imageWithoutInspectionCount}</div></div>${excelResult}${jobResult}${imageWithoutInspectionResult}</div>`;
   }
 
   private renderInspectorValidation(artifact: InspectorValidationArtifact): string {
@@ -385,7 +542,7 @@ try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){cur
     return `<div class="dispatch-report">${search}${inspected}${empty}${errors}</div>`;
   }
 
-  private renderDispatchJob(job: JobDispatchDetails, index: number, imagesIncluded: boolean): string {
+  private renderDispatchJob(job: JobDispatchDetails, index: number, imagesIncluded: boolean, openFirst = true): string {
     const dispatchedEquipment =
       job.sections.find((section) => section.name === 'All Dispatched Equipment')?.equipment ?? [];
     const inspectionsWithUploadedImages = dispatchedEquipment.filter(
@@ -394,9 +551,17 @@ try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){cur
     const uploadedImagesCard = imagesIncluded
       ? `<div><strong>Inspections with uploaded images</strong>${inspectionsWithUploadedImages}</div>`
       : '';
-    return `<details class="dispatch-job" data-job-number="${this.escape(job.jobNumber)}" ${index === 0 ? 'open' : ''}><summary><span class="title">JN ${this.escape(job.jobNumber)}</span><span>${job.dispatchedEquipment} dispatched equipment</span></summary><div class="dispatch-body"><div class="dispatch-summary">
+    const archivedInspections = job.archivedInspections.length
+      ? `<h4 class="section-title">All Inspection PDFs (${job.archivedInspections.length})</h4><div class="table-wrap"><table><thead><tr><th>Instant Number</th><th>Equipment</th><th>Inspected At</th><th>Time</th><th>PDF</th></tr></thead><tbody>${job.archivedInspections
+          .map(
+            (inspection) =>
+              `<tr><td>${this.escape(inspection.instantNumber)}</td><td>${this.escape(inspection.equipmentNumber)}</td><td>${this.escape(inspection.inspectedAt)}</td><td>${this.escape(inspection.inspectionTime)}</td><td><a class="view-link" href="${this.escape(inspection.pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a></td></tr>`
+          )
+          .join('')}</tbody></table></div>`
+      : '<div class="empty">No inspection PDFs were available for this Job Number.</div>';
+    return `<details class="dispatch-job" data-job-number="${this.escape(job.jobNumber)}" ${openFirst && index === 0 ? 'open' : ''}><summary><span class="title">JN ${this.escape(job.jobNumber)}</span><span>${job.dispatchedEquipment} dispatched equipment</span></summary><div class="dispatch-body"><div class="dispatch-summary">
       <div><strong>Data Date</strong>${this.escape(job.dataDate)}</div><div><strong>Dispatched Equipment</strong>${job.dispatchedEquipment}</div><div><strong>Today's Submitted Inspection</strong>${job.todaysSubmittedInspection}</div><div><strong>Rows marked Yes</strong>${job.submittedInspectionRows}</div><div><strong>Asset Description PDF Links</strong>${job.inspectionPdfLinks}</div>${uploadedImagesCard}
-      </div>${job.sections.map((section) => `<h4 class="section-title">${this.escape(section.name)} (${section.equipment.length})</h4>${this.renderEquipmentTable(section.equipment, imagesIncluded)}`).join('')}</div></details>`;
+      </div>${job.sections.map((section) => `<h4 class="section-title">${this.escape(section.name)} (${section.equipment.length})</h4>${this.renderEquipmentTable(section.equipment, imagesIncluded)}`).join('')}${archivedInspections}</div></details>`;
   }
 
   private renderEquipmentTable(equipment: EquipmentRecord[], imagesIncluded: boolean): string {

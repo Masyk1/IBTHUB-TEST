@@ -46,13 +46,14 @@ try {
   );
   const playwrightCli = fileURLToPath(new URL('../../node_modules/@playwright/test/cli.js', import.meta.url));
   const browserArguments = process.argv.includes('--headed') ? ['--headed'] : [];
-  const child = spawn(process.execPath, [playwrightCli, 'test', ...browserArguments], {
+  const child = spawn(process.execPath, [playwrightCli, 'test', '--workers=1', ...browserArguments], {
     stdio: 'inherit',
     env: {
       ...process.env,
       DISPATCH_DATE: dispatchDate,
       WAIT_FOR_IMAGES: String(waitForImages),
       IMAGE_PAGE_WORKERS: imagePageWorkers,
+      JOB_LIST_PAGE_WORKERS: imagePageWorkers,
     },
   });
 
