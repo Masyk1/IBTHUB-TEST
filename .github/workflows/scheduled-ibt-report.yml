@@ -1,0 +1,89 @@
+name: Scheduled IBT report
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 11,16,19,23 * * *'
+      timezone: Europe/Bucharest
+
+concurrency:
+  group: scheduled-ibt-report
+  cancel-in-progress: false
+
+jobs:
+  test-and-email:
+    name: Run IBT tests and email report
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      BASE_URL: ${{ secrets.IBT_BASE_URL }}
+      USER_NAME: ${{ secrets.IBT_USER_NAME }}
+      USER_PASSWORD: ${{ secrets.IBT_USER_PASSWORD }}
+      WAIT_FOR_IMAGES: 'true'
+      IMAGE_PAGE_WORKERS: '15'
+      IMAGES_TIMEOUT_MINUTES: '15'
+      TZ: Europe/Bucharest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Select today's Romanian date
+        run: echo "DISPATCH_DATE=$(date +%F)" >> "$GITHUB_ENV"
+
+      - name: Run complete IBT test suite
+        id: tests
+        continue-on-error: true
+        run: pnpm test
+
+      - name: Upload IBT and Playwright reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ibt-report-${{ env.DISPATCH_DATE }}-${{ github.run_number }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            artifacts/local/ibt-hub-report.html
+            artifacts/results.xml
+            playwright-report/
+            test-results/
+
+      - name: Email IBT HTML report
+        if: always()
+        env:
+          SMTP_HOST: smtp.gmail.com
+          SMTP_PORT: '465'
+          SMTP_USERNAME: ${{ secrets.REPORT_EMAIL_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.REPORT_EMAIL_APP_PASSWORD }}
+          REPORT_EMAIL_TO: www.stefang@gmail.com
+          REPORT_DATE: ${{ env.DISPATCH_DATE }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          REPORT_PATH: artifacts/local/ibt-hub-report.html
+          WORKFLOW_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 utils/scripts/send-ibt-report.py
+
+      - name: Preserve test failure status
+        if: steps.tests.outcome != 'success'
+        run: |
+          echo "The IBT test suite finished with status: ${{ steps.tests.outcome }}"
+          exit 1

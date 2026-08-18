@@ -255,6 +255,22 @@ Generated file:
 artifacts/local/ibt-hub-report.html
 ```
 
+## Scheduled GitHub report
+
+The `Scheduled IBT report` GitHub Actions workflow runs the complete suite every day at `11:00`, `16:00`, `19:00`, and `23:00` in the `Europe/Bucharest` timezone. It uses the Romanian calendar date, verifies image links, uploads the generated artifacts for 30 days, and emails the custom HTML report even when a test fails.
+
+Configure these repository secrets in **Settings → Secrets and variables → Actions**:
+
+| Secret                      | Value                                                             |
+| --------------------------- | ----------------------------------------------------------------- |
+| `IBT_BASE_URL`              | IBT application URL                                               |
+| `IBT_USER_NAME`             | IBT login username                                                |
+| `IBT_USER_PASSWORD`         | IBT login password                                                |
+| `REPORT_EMAIL_USERNAME`     | Gmail address used to send reports                                |
+| `REPORT_EMAIL_APP_PASSWORD` | Gmail App Password for the sender account, not its login password |
+
+The report recipient is configured as `www.stefang@gmail.com`. The workflow can also be tested immediately from **Actions → Scheduled IBT report → Run workflow**.
+
 Open the standard Playwright report:
 
 ```bash
