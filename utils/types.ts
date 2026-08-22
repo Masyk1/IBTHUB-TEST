@@ -41,6 +41,7 @@ export interface JobEquipmentSnapshot {
 export interface ArchivedInspectionRecord {
   readonly instantNumber: string;
   readonly equipmentNumber: string;
+  readonly phoneNumber?: string;
   readonly inspectedAt: string;
   readonly inspectionTime: string;
   readonly pdfFileName: string;
@@ -75,6 +76,8 @@ export interface InspectionCountValidationItem {
 export interface DuplicateEquipmentInspection {
   readonly equipmentNumber: string;
   readonly assetDescription: string;
+  readonly phoneNumbers: string[];
+  readonly hasDifferentPhoneNumbers: boolean;
   readonly inspections: ArchivedInspectionRecord[];
 }
 

@@ -17,13 +17,26 @@ export function createInspectionValidationArtifact(
     }
     const duplicateEquipment = [...inspectionsByEquipment.entries()]
       .filter(([, inspections]) => inspections.length > 1)
-      .map(([equipmentNumber, inspections]) => ({
-        equipmentNumber,
-        assetDescription:
-          dispatchedEquipment.find((item) => item.assetDescription.startsWith(`${equipmentNumber} `))
-            ?.assetDescription ?? equipmentNumber,
-        inspections,
-      }));
+      .map(([equipmentNumber, inspections]) => {
+        const phonesByNormalizedValue = new Map<string, string>();
+        for (const inspection of inspections) {
+          const phoneNumber = inspection.phoneNumber?.trim();
+          const normalizedPhoneNumber = phoneNumber?.replace(/\D/g, '') ?? '';
+          if (phoneNumber && normalizedPhoneNumber.length >= 7) {
+            phonesByNormalizedValue.set(normalizedPhoneNumber, phoneNumber);
+          }
+        }
+        const phoneNumbers = [...phonesByNormalizedValue.values()];
+        return {
+          equipmentNumber,
+          assetDescription:
+            dispatchedEquipment.find((item) => item.assetDescription.startsWith(`${equipmentNumber} `))
+              ?.assetDescription ?? equipmentNumber,
+          phoneNumbers,
+          hasDifferentPhoneNumbers: phoneNumbers.length > 1,
+          inspections,
+        };
+      });
     return {
       jobNumber: job.jobNumber,
       expectedSubmittedInspections: job.todaysSubmittedInspection,

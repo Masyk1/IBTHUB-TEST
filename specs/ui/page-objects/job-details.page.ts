@@ -159,9 +159,14 @@ export class JobDetailsPage extends BasePage {
       const instantNumber = this.readPdfValue(text, /Instant Number:\s*(\d+)/i, entry.entryName);
       const equipmentNumber = this.readPdfValue(text, /Equipment Number\s*:?\s*([^\r\n]+)/i, entry.entryName);
       const inspectedAt = this.readPdfValue(text, /Date\s*:?\s*([^\r\n]+)/i, entry.entryName);
+      const phoneNumber = this.readOptionalPdfValue(
+        text,
+        /(?:Inspector\s+)?(?:Phone|Telephone|Mobile)(?:\s*(?:Number|No\.?|#))?\s*:?\s*(\+?\d[\d(). \t-]{5,}\d)/i
+      );
       records.push({
         instantNumber,
         equipmentNumber,
+        phoneNumber,
         inspectedAt,
         inspectionTime: inspectedAt.match(/\b\d{1,2}:\d{2}:\d{2}\s*[AP]M\b/i)?.[0] ?? inspectedAt,
         pdfFileName: entry.entryName,
@@ -175,6 +180,10 @@ export class JobDetailsPage extends BasePage {
     const value = source.match(pattern)?.[1]?.trim();
     if (!value) throw new Error(`Expected inspection value was not found in ${fileName}.`);
     return value;
+  }
+
+  private readOptionalPdfValue(source: string, pattern: RegExp): string | undefined {
+    return source.match(pattern)?.[1]?.trim() || undefined;
   }
 
   private async waitForImagesToResolve(): Promise<boolean> {
