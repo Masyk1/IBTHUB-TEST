@@ -225,7 +225,6 @@ test.describe('IBT Hub Job List', () => {
       body: Buffer.from(JSON.stringify(inspectionValidation)),
       contentType: 'application/json',
     });
-
     expect(
       inspectionValidation.jobs.filter((job) => !job.matched),
       'Every submitted inspection must have one Yes row, one PDF link and no duplicate equipment inspection.'

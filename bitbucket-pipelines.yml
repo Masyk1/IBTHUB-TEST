@@ -1,0 +1,23 @@
+image: mcr.microsoft.com/playwright:v1.48.0-noble
+
+definitions:
+  steps:
+    - step: &run-ibt-tests
+        name: Run complete IBT test suite and send reports
+        max-time: 90
+        caches:
+          - node
+        script:
+          - corepack enable
+          - corepack prepare pnpm@10.12.1 --activate
+          - pnpm install --frozen-lockfile
+          - pnpm test
+        artifacts:
+          - artifacts/**
+          - playwright-report/**
+          - test-results/**
+
+pipelines:
+  custom:
+    scheduled-ibt-tests:
+      - step: *run-ibt-tests

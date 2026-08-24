@@ -41,7 +41,12 @@ export interface JobEquipmentSnapshot {
 export interface ArchivedInspectionRecord {
   readonly instantNumber: string;
   readonly equipmentNumber: string;
+  readonly jobNumber?: string;
+  readonly assetDescription?: string;
+  readonly meterReading?: string;
+  readonly operationStatus?: string;
   readonly phoneNumber?: string;
+  readonly phoneOwnerName?: string;
   readonly inspectedAt: string;
   readonly inspectionTime: string;
   readonly pdfFileName: string;

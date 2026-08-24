@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { BasePage } from './base.page';
+import { lookupPhoneOwnerName } from '@utils/phone-directory';
 import type {
   ArchivedInspectionRecord,
   EquipmentRecord,
@@ -159,14 +160,24 @@ export class JobDetailsPage extends BasePage {
       const instantNumber = this.readPdfValue(text, /Instant Number:\s*(\d+)/i, entry.entryName);
       const equipmentNumber = this.readPdfValue(text, /Equipment Number\s*:?\s*([^\r\n]+)/i, entry.entryName);
       const inspectedAt = this.readPdfValue(text, /Date\s*:?\s*([^\r\n]+)/i, entry.entryName);
+      const jobNumber = this.readOptionalPdfValue(text, /Job Number\s*:?\s*([^\r\n]+)/i);
+      const assetDescription = this.readOptionalPdfValue(text, /Asset Description\s*:?\s*([^\r\n]+)/i);
+      const meterReading = this.readOptionalPdfValue(text, /Meter Reading\s*:?\s*([^\r\n]+)/i);
+      const operationStatus = this.readOptionalPdfValue(text, /\b(SAFE TO OPERATE|NOT SAFE TO OPERATE)\b/i);
       const phoneNumber = this.readOptionalPdfValue(
         text,
         /(?:Inspector\s+)?(?:Phone|Telephone|Mobile)(?:\s*(?:Number|No\.?|#))?\s*:?\s*(\+?\d[\d(). \t-]{5,}\d)/i
       );
+      const phoneOwnerName = await lookupPhoneOwnerName(phoneNumber);
       records.push({
         instantNumber,
         equipmentNumber,
+        jobNumber,
+        assetDescription,
+        meterReading,
+        operationStatus,
         phoneNumber,
+        phoneOwnerName,
         inspectedAt,
         inspectionTime: inspectedAt.match(/\b\d{1,2}:\d{2}:\d{2}\s*[AP]M\b/i)?.[0] ?? inspectedAt,
         pdfFileName: entry.entryName,

@@ -10,3 +10,7 @@ output/
 .env
 .playwright-cli
 debug.log
+
+# Private reference data: names and phone numbers must never be committed
+data/private/*
+!data/private/README.md

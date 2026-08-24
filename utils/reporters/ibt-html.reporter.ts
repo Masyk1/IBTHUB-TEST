@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
+import { sendDuplicateInspectionEmail, sendFullReportEmail } from '@utils/duplicate-email-notification';
 import type {
   DispatchDetailsArtifact,
   EquipmentRecord,
@@ -156,8 +157,24 @@ class IbtHtmlReporter implements Reporter {
 
   async onEnd(): Promise<void> {
     await fs.mkdir(path.dirname(this.outputFile), { recursive: true });
-    await fs.writeFile(this.outputFile, this.render(), 'utf8');
+    const reportHtml = this.render();
+    await fs.writeFile(this.outputFile, reportHtml, 'utf8');
     console.log(`\nIBT Hub HTML report: ${this.outputFile}`);
+    const functionalEntries = this.entries.filter((entry) => !this.isSetupEntry(entry));
+    const failedTests = functionalEntries.filter((entry) => entry.status !== 'passed').length;
+    const inspectionValidation = [...this.entries]
+      .reverse()
+      .find((entry) => entry.inspectionValidation)?.inspectionValidation;
+    const reportDate =
+      process.env.DISPATCH_DATE ||
+      functionalEntries.find((entry) => entry.equipmentReport)?.equipmentReport?.reportDate ||
+      functionalEntries.find((entry) => entry.dispatchDetails)?.dispatchDetails?.jobs[0]?.dataDate ||
+      new Date().toISOString().slice(0, 10);
+    const [fullReportEmail, duplicateEmail] = await Promise.all([
+      sendFullReportEmail(reportHtml, reportDate, failedTests),
+      sendDuplicateInspectionEmail(inspectionValidation),
+    ]);
+    console.log(`Email notifications: full report=${fullReportEmail}, Test 6 duplicates=${duplicateEmail}`);
   }
 
   private render(): string {
@@ -189,6 +206,7 @@ class IbtHtmlReporter implements Reporter {
       .join('');
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>IBT Hub Automation Report</title><style>
+.duplicate-differences{margin:14px 0;padding:14px;border:1px solid #d7e2eb;border-radius:11px;background:var(--surface)}.duplicate-differences h5{margin:0 0 10px;color:var(--ink);font-size:13px}.difference-grid{display:grid;gap:8px}.difference-row{display:grid;grid-template-columns:minmax(120px,.7fr) repeat(var(--inspection-count),minmax(130px,1fr));border:1px solid var(--line);border-radius:9px;overflow:hidden}.difference-label,.difference-value{padding:9px 10px}.difference-label{background:var(--soft);color:var(--ink);font-size:11px;font-weight:850;text-transform:uppercase}.difference-value{border-left:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:12px}.difference-value strong{display:block;margin-bottom:3px;color:var(--muted);font-size:9px;text-transform:uppercase}.difference-value.changed{background:#fff1c7;color:#684b00;font-weight:850}.difference-none{margin:0;color:var(--muted);font-size:12px}.difference-count{display:inline-flex;margin-left:7px;padding:3px 7px;border-radius:999px;background:#ffe5a1;color:#684b00;font-size:10px;font-weight:900}@media(max-width:800px){.difference-row{grid-template-columns:1fr}.difference-value{border-top:1px solid var(--line);border-left:0}}body.dark .difference-value.changed{background:#594a18;color:#fff2b8}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#eef2f6 0%,#f8fafc 55%,#f3e8eb 100%);color:#172638;font-family:Segoe UI,Arial,sans-serif}.wrap{max-width:1180px;margin:32px auto;background:#fff;border:1px solid #dce3e9;border-radius:18px;box-shadow:0 22px 60px #19324d24;overflow:hidden}
 header{padding:38px 42px 34px;background:linear-gradient(115deg,#182b3e 0%,#263f57 68%,#8d172d 100%);color:#fff;position:relative}header:after{content:"";position:absolute;right:38px;bottom:0;width:180px;height:5px;background:#ef3340;border-radius:5px 5px 0 0}header h1{margin:4px 0 8px;font-size:32px;letter-spacing:-.5px}.eyebrow{margin:0;color:#ff9ca6;font-size:12px;font-weight:800;letter-spacing:1.8px;text-transform:uppercase}.header-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px}.header-copy{margin:0;color:#dce5ed}.setup-status{padding:8px 13px;border:1px solid #ffffff42;border-radius:999px;background:#ffffff13;font-size:12px;font-weight:700;white-space:nowrap}.summary{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:16px;padding:24px 36px;background:#f7f9fb;border-bottom:1px solid #e2e7eb}
 .metric{padding:18px 20px;background:#fff;border-radius:10px;box-shadow:0 4px 14px #263b5214;border:1px solid #e1e6eb}.metric strong{display:block;font-size:34px;line-height:1}.metric span{display:block;margin-top:7px;color:#6a7784;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.6px}.metric.tests{border-top:5px solid #e3223d}.metric.tests strong{color:#d71935}.metric.success{border-top:5px solid #20864b}.metric.success strong{color:#17713d}.metric.failure{border-top:5px solid #c9363e}.metric.failure strong{color:#a82431}.content{padding:30px 36px 42px}.section-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 18px}.section-heading h2{margin:0;font-size:20px}.section-heading span{color:#748190;font-size:13px}
@@ -216,7 +234,7 @@ header h1{font-size:38px;letter-spacing:-1.2px}.header-copy{color:#cbd9e6;font-s
 .job-search{margin-top:8px;padding:14px 16px;border-color:#cad5df;border-radius:12px;background:#f9fbfd;transition:.18s ease}.job-search:focus{background:#fff;box-shadow:0 0 0 4px #2684ff18}.dispatch-job{border-color:#dbe4eb;border-radius:15px;box-shadow:0 7px 20px #1a354e0d}.dispatch-job>summary{padding:14px 18px;border-radius:14px;background:linear-gradient(105deg,#142a3f,#284b69);box-shadow:0 6px 16px #132a4030}.dispatch-job>summary .title{background:linear-gradient(135deg,var(--red),#b50f2a);box-shadow:0 4px 12px #d7193545}.dispatch-body{padding:20px}.dispatch-summary,.equipment-summary{grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:0;border:0;background:transparent}.dispatch-summary div,.equipment-summary div,.equipment-summary button{min-height:82px;padding:15px 16px;border:1px solid #e3eaf0;border-top:1px solid #e3eaf0!important;border-radius:12px;background:linear-gradient(145deg,#fff,#f5f8fb);box-shadow:0 5px 14px #19334c0b;color:inherit;font:inherit;font-size:18px;font-weight:750;text-align:left}.dispatch-summary div:before,.equipment-summary div:before,.equipment-summary button:before{content:"";display:block;width:28px;height:3px;margin-bottom:11px;border-radius:2px;background:linear-gradient(90deg,var(--red),var(--red-2))}.equipment-summary div:before,.equipment-summary button:before{background:linear-gradient(90deg,var(--blue),#71b0ff)}.dispatch-summary strong,.equipment-summary strong{display:block;color:#67798a;font-size:10px;letter-spacing:.55px}.equipment-summary .missing-foreman-filter{cursor:pointer;border-color:#ead58a!important;background:linear-gradient(145deg,#fffdf2,#fff7d8);box-shadow:0 5px 14px #9a680015;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}.equipment-summary .missing-foreman-filter:before{background:linear-gradient(90deg,#e6a700,#ffd95a)}.equipment-summary .missing-foreman-filter:hover,.equipment-summary .missing-foreman-filter.active{transform:translateY(-2px);border-color:#d5a900!important;box-shadow:0 9px 22px #9a680026}.equipment-summary .missing-foreman-filter.active{background:#ffefad;outline:3px solid #e6a70028}.equipment-summary .missing-foreman-filter strong{color:#8a6200}
 .table-wrap{border:1px solid #dfe7ed;border-radius:13px;box-shadow:0 6px 18px #18334c0a}table{border-collapse:separate;border-spacing:0}th,td{padding:12px 13px;border:0;border-bottom:1px solid #e4eaf0}th{position:sticky;top:0;z-index:2;background:#1b334a;color:#f7fbff;font-size:11px;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}th:first-child{border-radius:11px 0 0}th:last-child{border-radius:0 11px 0 0}tbody tr{transition:background .14s ease}tbody tr:hover td{background:#edf5fc!important}tbody tr:last-child td{border-bottom:0}.equipment-in-use td{background:#edf9f3}.equipment-problem td,.validation-row-failed td{background:#fff0f2!important}.equipment-warning td{background:#fff8dc!important;border-color:#ead58a}.view-link{color:#0876e1;text-decoration:none}.view-link:hover{text-decoration:underline}.key-on{display:table-cell;color:#087a46}.equipment-filter{position:sticky;top:8px;z-index:4;justify-content:space-between;padding:12px 14px;border:1px solid #dce5ec;border-radius:12px;background:#fffffff2;box-shadow:0 8px 22px #17334c12;backdrop-filter:blur(12px)}.equipment-filter select{border-radius:9px}.validation-passed{border:1px solid #bfe9d1;border-left:5px solid var(--green);border-radius:11px;background:linear-gradient(100deg,#ebfaf2,#f7fffa)}
 .job-errors{border-radius:13px!important}.job-error{border-radius:12px}.job-error img{border-radius:10px}.section-title{margin-top:24px;font-size:16px}.empty{padding:18px;border:1px dashed #cbd6df;border-radius:10px;background:#f8fafc}
-.validation-job>summary{position:relative;top:auto}.validation-job-metrics{display:flex;align-items:center;justify-content:flex-end;gap:18px;flex:1}.validation-job-metrics>span:not(.badge){color:#d7e3ed;font-size:11px;font-weight:600;text-transform:uppercase}.validation-job-metrics strong{display:block;margin-top:2px;color:#fff;font-size:15px}.duplicate-card{margin:4px 0 18px;padding:16px;border:1px solid #f0b9c1;border-left:5px solid var(--red);border-radius:12px;background:#fff8f9}.duplicate-card h4{margin:0 0 12px;color:#a62238;font-size:16px}.duplicate-card h4 span{margin-left:8px;color:#5e6f80;font-size:13px;font-weight:600}.duplicate-card .table-wrap{margin-bottom:0;background:#fff}.duplicate-card.critical-phone{position:relative;border:2px solid #9d1029;border-left:8px solid #9d1029;background:linear-gradient(135deg,#fff0f2,#fff8f9);box-shadow:0 12px 30px #9d102929}.duplicate-card.critical-phone:before{content:"CRITICAL · DIFFERENT PHONE NUMBERS";display:inline-flex;margin-bottom:12px;padding:6px 10px;border-radius:999px;background:#9d1029;color:#fff;font-size:10px;font-weight:900;letter-spacing:.8px;box-shadow:0 0 0 5px #9d102912}.duplicate-card.critical-phone h4{color:#7d0b20}.phone-critical{color:#a10f29;font-weight:900}.phone-missing{color:#7a8794;font-style:italic}.critical-phone-note{margin:0 0 14px;padding:11px 13px;border-radius:9px;background:#9d10290d;color:#7d0b20;font-weight:750}
+.validation-job>summary{position:relative;top:auto}.validation-job-metrics{display:flex;align-items:center;justify-content:flex-end;gap:18px;flex:1}.validation-job-metrics>span:not(.badge){color:#d7e3ed;font-size:11px;font-weight:600;text-transform:uppercase}.validation-job-metrics strong{display:block;margin-top:2px;color:#fff;font-size:15px}.duplicate-card{margin:4px 0 18px;padding:16px;border:1px solid #f0b9c1;border-left:5px solid var(--red);border-radius:12px;background:#fff8f9}.duplicate-card h4{margin:0 0 12px;color:#a62238;font-size:16px}.duplicate-card h4 span{margin-left:8px;color:#5e6f80;font-size:13px;font-weight:600}.duplicate-card .table-wrap{margin-bottom:0;background:#fff}.duplicate-card.critical-phone{position:relative;border:2px solid #9d1029;border-left:8px solid #9d1029;background:linear-gradient(135deg,#fff0f2,#fff8f9);box-shadow:0 12px 30px #9d102929}.duplicate-card.critical-phone:before{content:"CRITICAL · DIFFERENT PHONE NUMBERS";display:inline-flex;margin-bottom:12px;padding:6px 10px;border-radius:999px;background:#9d1029;color:#fff;font-size:10px;font-weight:900;letter-spacing:.8px;box-shadow:0 0 0 5px #9d102912}.duplicate-card.critical-phone h4{color:#7d0b20}.phone-critical{color:#a10f29;font-weight:900}.phone-missing{color:#7a8794;font-style:italic}.phone-owner{display:block;margin-top:4px;color:#40566b;font-size:11px;font-weight:800}.phone-owner:before{content:"Person: ";color:#738293;font-weight:650}.critical-phone-note{margin:0 0 14px;padding:11px 13px;border-radius:9px;background:#9d10290d;color:#7d0b20;font-weight:750}
 .comparison-list{display:grid;gap:12px;margin:12px 0 22px}.comparison-card{padding:15px;border:1px solid #efb4bb;border-left:5px solid var(--red);border-radius:12px;background:#fff8f9}.comparison-title{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}.comparison-title strong{font-size:15px;color:#8f1f2c}.comparison-title span{padding:4px 8px;border-radius:6px;background:#f9dadd;color:#8f1f2c;font-size:12px;font-weight:750}.comparison-problem{margin:0 0 12px;padding:9px 11px;border-radius:8px;background:#fff0f1;color:#8f1f2c;font-weight:700}.comparison-sources{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px}.comparison-source{position:relative;padding:11px;border:1px solid #dce5ec;border-radius:9px;background:#fff}.comparison-source.has-outlier{border:3px solid #e71939;background:#fff5f6;box-shadow:0 0 0 4px #e7193918,0 8px 20px #b3132b20}.comparison-source.has-outlier:before{content:"DIFFERENCE HERE";position:absolute;right:8px;top:-11px;padding:4px 8px;border-radius:999px;background:#e71939;color:#fff;font-size:9px;font-weight:900;letter-spacing:.55px;box-shadow:0 4px 10px #b3132b35}.comparison-source h5{margin:0 0 8px;color:#516476;font-size:11px;text-transform:uppercase;letter-spacing:.4px}.comparison-source.has-outlier h5{color:#a7192d;font-weight:900}.comparison-values{display:grid;grid-template-columns:1fr 1fr;gap:7px}.comparison-value{padding:7px 8px;border-radius:7px;background:#edf8f2;color:#176b38}.comparison-value strong{display:block;margin-bottom:3px;color:#687887;font-size:9px;text-transform:uppercase}.comparison-value.different{background:#fff7df;color:#7a5900;box-shadow:inset 0 0 0 1px #ecd478}.comparison-value.outlier{background:#e71939;color:#fff;box-shadow:0 5px 14px #b3132b35;transform:scale(1.03);font-size:16px;font-weight:900}.comparison-value.outlier strong{color:#fff}.comparison-other{margin-top:9px;color:#6a7784;font-size:12px}@media(max-width:800px){.comparison-sources{grid-template-columns:1fr}}
 .passed-jobs-group{margin-top:22px;border:1px solid #cfe3d8;border-radius:13px;background:#f4fbf7;overflow:hidden}.passed-jobs-group>summary{padding:15px 18px;color:#187044;font-weight:800;cursor:pointer;list-style:none}.passed-jobs-group>summary:before{content:"✓";display:inline-grid;place-items:center;width:24px;height:24px;margin-right:9px;border-radius:50%;background:#d7f3e3}.passed-jobs-group>summary:after{content:"Show details";float:right;color:#6f8178;font-size:11px;font-weight:700;text-transform:uppercase}.passed-jobs-group[open]>summary:after{content:"Hide details"}.passed-jobs-body{padding:0 14px 14px}.passed-jobs-body .validation-job{box-shadow:none;opacity:.9}
 .report-hero{--mx:50%;--my:50%;min-height:260px;display:flex;align-items:center;position:relative;padding:30px 56px;isolation:isolate;background:linear-gradient(118deg,#071827 0%,#102e48 48%,#3b203b 76%,#710d29 115%);overflow:hidden}
@@ -341,15 +359,62 @@ try{var saved=JSON.parse(localStorage.getItem(storageKey)||'null');if(saved){cur
   private renderInspectionValidation(artifact: InspectionCountValidationArtifact): string {
     if (artifact.jobs.length === 0) return '<div class="empty">No Job Numbers were available for validation.</div>';
     const renderJob = (job: InspectionCountValidationArtifact['jobs'][number]): string => {
+      const renderDifferences = (duplicate: (typeof job.duplicateEquipment)[number]): string => {
+        const fields = [
+          {
+            label: 'Meter Reading',
+            value: (inspection: (typeof duplicate.inspections)[number]) => inspection.meterReading,
+          },
+          {
+            label: 'Inspector Phone',
+            value: (inspection: (typeof duplicate.inspections)[number]) => inspection.phoneNumber,
+          },
+          { label: 'Person', value: (inspection: (typeof duplicate.inspections)[number]) => inspection.phoneOwnerName },
+          {
+            label: 'Inspection Date & Time',
+            value: (inspection: (typeof duplicate.inspections)[number]) => inspection.inspectedAt,
+          },
+          { label: 'Job Number', value: (inspection: (typeof duplicate.inspections)[number]) => inspection.jobNumber },
+          {
+            label: 'Asset Description',
+            value: (inspection: (typeof duplicate.inspections)[number]) => inspection.assetDescription,
+          },
+          {
+            label: 'Operation Status',
+            value: (inspection: (typeof duplicate.inspections)[number]) => inspection.operationStatus,
+          },
+        ];
+        const differences = fields.filter(({ value }) => {
+          const normalizedValues = duplicate.inspections.map((inspection) =>
+            (value(inspection) ?? 'Not found').trim().toLowerCase()
+          );
+          return new Set(normalizedValues).size > 1;
+        });
+        if (differences.length === 0) {
+          return '<section class="duplicate-differences"><h5>Inspection comparison</h5><p class="difference-none">No differences were found in the extracted PDF fields.</p></section>';
+        }
+        const rows = differences
+          .map(({ label, value }) => {
+            const values = duplicate.inspections.map((inspection) => value(inspection)?.trim() || 'Not found');
+            return `<div class="difference-row" style="--inspection-count:${duplicate.inspections.length}"><div class="difference-label">${this.escape(label)}</div>${values
+              .map(
+                (fieldValue, index) =>
+                  `<div class="difference-value changed"><strong>Inspection ${index + 1}</strong>${this.escape(fieldValue)}</div>`
+              )
+              .join('')}</div>`;
+          })
+          .join('');
+        return `<section class="duplicate-differences"><h5>Differences found <span class="difference-count">${differences.length}</span></h5><div class="difference-grid">${rows}</div></section>`;
+      };
       const duplicates = job.duplicateEquipment
         .map(
           (duplicate) =>
             `<section class="duplicate-card${duplicate.hasDifferentPhoneNumbers ? ' critical-phone' : ''}">${duplicate.hasDifferentPhoneNumbers ? `<p class="critical-phone-note">The same equipment has duplicate inspections submitted from ${duplicate.phoneNumbers.length} different phone numbers. Review these PDFs first.</p>` : ''}<h4>EQ ${this.escape(duplicate.equipmentNumber)} <span>${this.escape(duplicate.assetDescription)}</span></h4><div class="table-wrap"><table><thead><tr><th>Inspection</th><th>Phone Number</th><th>Date &amp; Time</th><th>Time</th><th>PDF</th></tr></thead><tbody>${duplicate.inspections
               .map(
                 (inspection, index) =>
-                  `<tr><td>Inspection ${index + 1}</td><td class="${inspection.phoneNumber ? (duplicate.hasDifferentPhoneNumbers ? 'phone-critical' : '') : 'phone-missing'}">${this.escape(inspection.phoneNumber ?? 'Not found in PDF')}</td><td>${this.escape(inspection.inspectedAt)}</td><td><strong>${this.escape(inspection.inspectionTime)}</strong></td><td><a class="view-link" href="${this.escape(inspection.pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a></td></tr>`
+                  `<tr><td>Inspection ${index + 1}</td><td class="${inspection.phoneNumber ? (duplicate.hasDifferentPhoneNumbers ? 'phone-critical' : '') : 'phone-missing'}">${this.escape(inspection.phoneNumber ?? 'Not found in PDF')}${inspection.phoneOwnerName ? `<span class="phone-owner" style="color:var(--muted)">${this.escape(inspection.phoneOwnerName)}</span>` : ''}</td><td>${this.escape(inspection.inspectedAt)}</td><td><strong>${this.escape(inspection.inspectionTime)}</strong></td><td><a class="view-link" href="${this.escape(inspection.pdfUrl)}" target="_blank" rel="noopener noreferrer">Open PDF</a></td></tr>`
               )
-              .join('')}</tbody></table></div></section>`
+              .join('')}</tbody></table></div>${renderDifferences(duplicate)}</section>`
         )
         .join('');
       const details = duplicates || '<div class="empty">No duplicate equipment inspections found in the ZIP.</div>';

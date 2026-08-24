@@ -3,8 +3,6 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-const prompt = createInterface({ input, output });
-
 /**
  * @param {string} month
  * @param {string} day
@@ -29,17 +27,44 @@ function parseDispatchDate(month, day) {
   return date;
 }
 
+/**
+ * @param {string} timeZone
+ * @returns {string}
+ */
+function todayInTimeZone(timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 try {
-  const month = (await prompt.question('For which month should the test run? (1-12): ')).trim();
-  const day = (await prompt.question('For which day should the test run? (1-31): ')).trim();
-  const imageChoice = (await prompt.question('Check image links? (Y/N): ')).trim().toLowerCase();
-  if (!['y', 'yes', 'n', 'no'].includes(imageChoice)) {
-    throw new Error('Image link choice must be Y/Yes or N/No.');
+  const useToday = process.argv.includes('--today');
+  let dispatchDate;
+  let waitForImages;
+  if (useToday) {
+    dispatchDate = todayInTimeZone(process.env.REPORT_TIME_ZONE?.trim() || 'Europe/Bucharest');
+    waitForImages = true;
+  } else {
+    const prompt = createInterface({ input, output });
+    try {
+      const month = (await prompt.question('For which month should the test run? (1-12): ')).trim();
+      const day = (await prompt.question('For which day should the test run? (1-31): ')).trim();
+      const imageChoice = (await prompt.question('Check image links? (Y/N): ')).trim().toLowerCase();
+      if (!['y', 'yes', 'n', 'no'].includes(imageChoice)) {
+        throw new Error('Image link choice must be Y/Yes or N/No.');
+      }
+      dispatchDate = parseDispatchDate(month, day);
+      waitForImages = imageChoice === 'y' || imageChoice === 'yes';
+    } finally {
+      prompt.close();
+    }
   }
-  const dispatchDate = parseDispatchDate(month, day);
-  const waitForImages = imageChoice === 'y' || imageChoice === 'yes';
   const imagePageWorkers = '15';
-  prompt.close();
 
   console.log(
     `\nStarting the complete IBT Hub test suite for ${dispatchDate} ${waitForImages ? `with image link verification (${imagePageWorkers} parallel pages)` : 'without image link verification'}...\n`
@@ -63,7 +88,6 @@ try {
     process.exit(1);
   });
 } catch (error) {
-  prompt.close();
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }

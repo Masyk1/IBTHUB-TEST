@@ -5,7 +5,7 @@
   "description": "IBT Hub end-to-end test automation with Playwright",
   "type": "module",
   "scripts": {
-    "test": "playwright test",
+    "test": "node utils/scripts/run-dispatch-interactive.mjs --today",
     "test:smoke": "playwright test --grep @smoke",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
@@ -26,7 +26,9 @@
     "@playwright/test": "^1.58.2",
     "@types/adm-zip": "^0.5.8",
     "@types/node": "^22.10.1",
+    "@types/nodemailer": "^8.0.1",
     "adm-zip": "^0.6.0",
+    "csv-parse": "^7.0.2",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-playwright": "^2.2.0",
@@ -38,7 +40,8 @@
     "typescript-eslint": "^8.55.0"
   },
   "dependencies": {
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "nodemailer": "^9.0.5"
   },
   "packageManager": "pnpm@10.12.1"
 }
